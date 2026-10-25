@@ -111,6 +111,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -967,8 +968,9 @@ fun AppBackground(modifier: Modifier = Modifier) {
     val bgModifier = if (backdrop != null) modifier.layerBackdrop(backdrop) else modifier
     when (cfg.mode) {
         BgMode.LIQUID -> {
-            // iOS 化：原「液态动态」霓虹渐变已废弃，统一改为分组列表底色
-            FlatBackground(bgModifier)
+            // iOS 26 Liquid Glass：粉彩光斑环境光背景，
+            // 为全 App 的液态玻璃面板提供可折射的色彩与明暗
+            LiquidAmbientBackground(bgModifier)
         }
 
         BgMode.COLOR -> ColorBackground(cfg.color, bgModifier)
@@ -1054,6 +1056,108 @@ private fun FlatBackground(modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxSize()
             .background(IOSPalette.groupedBackground)
+    )
+}
+
+/**
+ * iOS 26 Liquid Glass 环境光背景（参照官方 Backdrop Catalog 演示）：
+ *
+ * 液态玻璃的折射观感来自背景的色彩与明暗变化 —— 官方 demo 均使用彩色环境光。
+ * 实现：浅色基底 + 4 团大尺度粉彩径向光斑，各光斑以不同周期缓慢漂移
+ * （graphicsLayer 平移静态渐变层，只变换不重绘，GPU 负担极低），
+ * 为全 App 的 liquidGlass 面板提供柔和的折射色彩源。
+ */
+@Composable
+private fun LiquidAmbientBackground(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "ambientBg")
+
+    // 各光斑相位错开的漂移进度（0..1 往复）
+    val drift1 by transition.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(26_000, easing = LinearEasing), RepeatMode.Reverse),
+        label = "drift1"
+    )
+    val drift2 by transition.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(34_000, easing = LinearEasing), RepeatMode.Reverse),
+        label = "drift2"
+    )
+    val drift3 by transition.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(42_000, easing = LinearEasing), RepeatMode.Reverse),
+        label = "drift3"
+    )
+    val drift4 by transition.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(50_000, easing = LinearEasing), RepeatMode.Reverse),
+        label = "drift4"
+    )
+
+    Box(modifier.fillMaxSize().background(IOSPalette.groupedBackground)) {
+        AmbientBlob(
+            color = Color(0xFFFFD9EC), // 樱粉
+            diameter = 520f,
+            startOffset = Offset(-0.12f, -0.08f),
+            driftX = 0.22f, driftY = 0.12f,
+            progress = drift1
+        )
+        AmbientBlob(
+            color = Color(0xFFC9D8FF), // 雾蓝
+            diameter = 560f,
+            startOffset = Offset(0.62f, 0.04f),
+            driftX = -0.18f, driftY = 0.16f,
+            progress = drift2
+        )
+        AmbientBlob(
+            color = Color(0xFFD9CFFF), // 淡紫
+            diameter = 480f,
+            startOffset = Offset(0.05f, 0.55f),
+            driftX = 0.16f, driftY = -0.14f,
+            progress = drift3
+        )
+        AmbientBlob(
+            color = Color(0xFFCDF2E4), // 薄荷
+            diameter = 500f,
+            startOffset = Offset(0.55f, 0.62f),
+            driftX = -0.2f, driftY = -0.1f,
+            progress = drift4
+        )
+    }
+}
+
+/** 单个环境光斑：静态径向渐变层，仅用 graphicsLayer 平移（不触发重绘） */
+@Composable
+private fun AmbientBlob(
+    color: Color,
+    diameter: Float,
+    startOffset: Offset,
+    driftX: Float,
+    driftY: Float,
+    progress: Float
+) {
+    val configuration = LocalConfiguration.current
+    val screenW = configuration.screenWidthDp.toFloat()
+    val screenH = configuration.screenHeightDp.toFloat()
+    Box(
+        modifier = Modifier
+            .offset {
+                IntOffset(
+                    ((startOffset.x + driftX * progress) * screenW).dp.roundToPx(),
+                    ((startOffset.y + driftY * progress) * screenH).dp.roundToPx()
+                )
+            }
+            .size(with(LocalDensity.current) { diameter.toDp() })
+            .drawBehind {
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            color.copy(alpha = 0.55f),
+                            color.copy(alpha = 0.22f),
+                            Color.Transparent
+                        )
+                    )
+                )
+            }
     )
 }
 
@@ -1480,8 +1584,28 @@ fun GlassCard(
             )
             .then(base)
             .graphicsLayer { alpha = cardAlpha }
+            // iOS 26 Liquid Glass 面板（官方规格）：
+            // vibrancy + blur(10dp) + lens 折射，表面叠 40% 浅白（官方 containerColor 0.4f）
+            // 有全局折射层时为真实折射玻璃，无层时库内部自动降级
+            .liquidGlass(
+                shape = shape,
+                blurRadius = 10.dp,
+                lensHeight = 14.dp,
+                lensAmount = 18.dp,
+                depthEffect = true,
+                chromaticAberration = false
+            )
+            .glass(
+                shape,
+                GlassColors(
+                    tintTop = Color.White.copy(alpha = 0.40f),
+                    tintBottom = Color.White.copy(alpha = 0.28f),
+                    highlight = Color.White.copy(alpha = 0.30f),
+                    rimBright = Color.White.copy(alpha = 0.60f),
+                    rimDim = IOSPalette.separator.copy(alpha = 0.6f)
+                )
+            )
             .clip(shape)
-            .background(IOSPalette.card)
             .padding(contentPadding),
         content = content
     )
@@ -1519,9 +1643,23 @@ fun GlassButton(
         label = "buttonPressAlpha"
     )
 
-    // Primary  = 实心系统蓝底 + 白字（最高对比）
-    // Glass    = 纯白底 + 1px #E5E5EA 描边 + #333333 深灰字
-    // Danger   = 纯白底 + 1px #FF3B30 描边 + #FF3B30 红字
+    // Primary  = 实心系统蓝底 + 白字（最高对比，LiquidButton 官方 tint 规格的强调变体）
+    // Glass    = 液态玻璃胶囊（官方 LiquidButton：vibrancy + blur(2dp) + lens(12,24)）
+    // Danger   = 液态玻璃胶囊 + 红色调 tint（官方 tint + Hue 混合规格）
+    val glassColors = GlassColors(
+        tintTop = Color(0xFFFAFAFA).copy(alpha = 0.44f),
+        tintBottom = Color(0xFFFAFAFA).copy(alpha = 0.30f),
+        highlight = Color.White.copy(alpha = 0.32f),
+        rimBright = Color.White.copy(alpha = 0.6f),
+        rimDim = IOSPalette.separator.copy(alpha = 0.5f)
+    )
+    val dangerColors = GlassColors(
+        tintTop = IOSPalette.destructive.copy(alpha = 0.14f),
+        tintBottom = IOSPalette.destructive.copy(alpha = 0.08f),
+        highlight = Color.White.copy(alpha = 0.30f),
+        rimBright = IOSPalette.destructive.copy(alpha = 0.45f),
+        rimDim = IOSPalette.destructive.copy(alpha = 0.30f)
+    )
     val container = when (style) {
         GlassButtonStyle.Primary -> Modifier
             .shadow(
@@ -1533,20 +1671,24 @@ fun GlassButton(
             .background(IOSPalette.tint)
 
         GlassButtonStyle.Glass -> Modifier
+            .liquidGlass(
+                shape = shape,
+                blurRadius = 4.dp,
+                lensHeight = 10.dp,
+                lensAmount = 14.dp
+            )
+            .glass(shape, glassColors)
             .clip(shape)
-            .background(IOSPalette.card)
-            .drawBehind {
-                val outline = shape.createOutline(size, layoutDirection, this)
-                drawOutline(outline, color = IOSPalette.separator, style = Stroke(width = 1.dp.toPx()))
-            }
 
         GlassButtonStyle.Danger -> Modifier
+            .liquidGlass(
+                shape = shape,
+                blurRadius = 4.dp,
+                lensHeight = 10.dp,
+                lensAmount = 14.dp
+            )
+            .glass(shape, dangerColors)
             .clip(shape)
-            .background(IOSPalette.card)
-            .drawBehind {
-                val outline = shape.createOutline(size, layoutDirection, this)
-                drawOutline(outline, color = IOSPalette.destructive, style = Stroke(width = 1.dp.toPx()))
-            }
     }
 
     val contentColor = when (style) {
@@ -1616,14 +1758,24 @@ fun GlassIconButton(
                 ambientColor = Color.Black.copy(alpha = 0.04f)
             )
             .graphicsLayer { alpha = if (iconPressed) IOSPalette.pressedOpacity else 1f }
-            .clip(CircleShape)
-            .background(IOSPalette.card)
-            .drawBehind {
-                drawCircle(
-                    color = IOSPalette.separator,
-                    style = Stroke(width = 1.dp.toPx())
+            // 圆形小图标钮：轻量液态玻璃
+            .liquidGlass(
+                shape = CircleShape,
+                blurRadius = 6.dp,
+                lensHeight = 8.dp,
+                lensAmount = 10.dp
+            )
+            .glass(
+                CircleShape,
+                GlassColors(
+                    tintTop = Color(0xFFFAFAFA).copy(alpha = 0.44f),
+                    tintBottom = Color(0xFFFAFAFA).copy(alpha = 0.30f),
+                    highlight = Color.White.copy(alpha = 0.32f),
+                    rimBright = Color.White.copy(alpha = 0.6f),
+                    rimDim = IOSPalette.separator.copy(alpha = 0.5f)
                 )
-            }
+            )
+            .clip(CircleShape)
             .clickable(interactionSource = interaction, indication = null) {
                 onClick()
             },
@@ -1895,7 +2047,7 @@ fun GlassNavBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // ---------------- 白色胶囊 Dock（3 标签 · 垂直布局）----------------
+        // ---------------- 液态玻璃胶囊 Dock（3 标签 · 垂直布局）----------------
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -1907,8 +2059,25 @@ fun GlassNavBar(
                     spotColor = Color.Black.copy(alpha = 0.08f),
                     ambientColor = Color.Black.copy(alpha = 0.04f)
                 )
+                // iOS 26 Liquid Glass Dock（官方 LiquidBottomTabs 规格）：
+                // vibrancy + blur(8dp) + lens(24dp) 折射 + 40% 浅色表面
+                .liquidGlass(
+                    shape = pillShape,
+                    blurRadius = 8.dp,
+                    lensHeight = 18.dp,
+                    lensAmount = 24.dp
+                )
+                .glass(
+                    pillShape,
+                    GlassColors(
+                        tintTop = Color(0xFFFAFAFA).copy(alpha = 0.42f),
+                        tintBottom = Color(0xFFFAFAFA).copy(alpha = 0.30f),
+                        highlight = Color.White.copy(alpha = 0.35f),
+                        rimBright = Color.White.copy(alpha = 0.65f),
+                        rimDim = IOSPalette.separator.copy(alpha = 0.55f)
+                    )
+                )
                 .clip(pillShape)
-                .background(IOSPalette.tabBar)
                 .padding(horizontal = 8.dp, vertical = 5.dp)
         ) {
             // 选中指示胶囊：宽度跟随内容（紧包裹），不撑满整槽
@@ -2099,8 +2268,24 @@ fun GlassNavBar(
                         ambientColor = Color.Black.copy(alpha = 0.04f)
                     )
                     .graphicsLayer { alpha = fabAlpha }
+                    // 设置按钮：与 Dock 同规格的液态玻璃圆钮
+                    .liquidGlass(
+                        shape = CircleShape,
+                        blurRadius = 8.dp,
+                        lensHeight = 12.dp,
+                        lensAmount = 16.dp
+                    )
+                    .glass(
+                        CircleShape,
+                        GlassColors(
+                            tintTop = Color(0xFFFAFAFA).copy(alpha = 0.42f),
+                            tintBottom = Color(0xFFFAFAFA).copy(alpha = 0.30f),
+                            highlight = Color.White.copy(alpha = 0.35f),
+                            rimBright = Color.White.copy(alpha = 0.65f),
+                            rimDim = IOSPalette.separator.copy(alpha = 0.55f)
+                        )
+                    )
                     .clip(CircleShape)
-                    .background(IOSPalette.card)
                     .then(
                         if (settingsSelected) Modifier.background(IOSPalette.capsuleSelected)
                         else Modifier
