@@ -142,7 +142,9 @@ fun HistoryScreen(
                 }
             } else {
                 // ============ 记录卡片（交错入场） ============
-                itemsIndexed(records, key = { _, r -> "${r.time}|${r.oldId}|${r.newId}" }) { index, record ->
+                // key 加入 index 防重复：time 精度只有秒，同一秒内保存两条相同 ID 迁移
+                // 会生成重复 key 导致 LazyColumn 崩溃（IllegalArgumentException）
+                itemsIndexed(records, key = { i, r -> "$i|${r.time}|${r.oldId}|${r.newId}" }) { index, record ->
                     StaggeredItem(index = index + 1) {
                         HistoryRecordCard(
                             record = record,
