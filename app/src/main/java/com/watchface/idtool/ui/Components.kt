@@ -1061,12 +1061,13 @@ private fun FlatBackground(modifier: Modifier = Modifier) {
 }
 
 /**
- * DeepSeek Harness 壁纸背景（Tomoyo Sakagami 适配版）：
+ * DeepSeek Harness 动态壁纸背景（Tomoyo Sakagami 适配版）：
  *
- * 底层：Harness 壁纸静态图（WE 工坊 2784334826 preview，1024×1024，Crop 铺满），
- *       压一层轻微白 scrim 保证浅色主题文字可读；
- * 光斑：全部从壁纸取色 —— 冰蓝 / 蓝灰 / 雪白 / 雾紫，缓慢漂移，
- *       让液态玻璃面板折射出的正是壁纸本身的色彩体系。
+ * 主层：assets/wallpaper_live.mp4 —— Harness 同款动态壁纸，
+ *       已预旋转为 720×1280 竖屏、30s 无缝循环、60fps、1MB（H.264 Baseline）。
+ *       AndroidView 包 VideoView 播放（零新依赖），循环播放无音轨。
+ * 回退：视频初始化失败 / 低配机型 → 静态帧 + 取色光斑（GPU 负担极低）。
+ * 前景：分层 scrim（上下渐深保证文字可读，人物区通透）+ 漂移光斑供玻璃折射取色。
  */
 @Composable
 private fun HarnessWallpaperBackground(modifier: Modifier = Modifier) {
@@ -1092,13 +1093,56 @@ private fun HarnessWallpaperBackground(modifier: Modifier = Modifier) {
         label = "hDrift4"
     )
 
+    var videoReady by remember { mutableStateOf(false) }
+    var videoFailed by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
     Box(modifier.fillMaxSize()) {
-        // 壁纸底图（自绘取景适配，见 WallpaperFraming 说明）
-        WallpaperFraming(
+        // ---- 主层：动态壁纸视频（循环播放，无音轨） ----
+        AndroidView(
+            factory = { ctx ->
+                android.widget.VideoView(ctx).apply {
+                    // 视频拷到私有目录播放（assets 流直接 setVideoURI 部分机型不兼容）
+                    try {
+                        val file = java.io.File(ctx.filesDir, "wallpaper_live.mp4")
+                        if (!file.exists() || file.length() == 0L) {
+                            ctx.assets.open("wallpaper_live.mp4").use { input ->
+                                file.outputStream().use { output -> input.copyTo(output) }
+                            }
+                        }
+                        setVideoPath(file.absolutePath)
+                        setOnPreparedListener { mp ->
+                            mp.isLooping = true
+                            mp.setVolume(0f, 0f)
+                            videoReady = true
+                            start()
+                        }
+                        setOnErrorListener { _, _, _ ->
+                            videoFailed = true
+                            true
+                        }
+                    } catch (_: Exception) {
+                        videoFailed = true
+                    }
+                }
+            },
+            update = { /* 状态驱动不重建，循环由 isLooping 维持 */ },
             modifier = Modifier.fillMaxSize()
         )
-        // 分层 scrim：上下边缘渐深（状态栏/导航栏文字可读），
-        // 人物核心区（屏幕中段）保持通透，玻璃折射不受影响
+
+        // ---- 回退层：静态帧（视频未就绪或失败时显示，避免黑屏闪烁） ----
+        if (!videoReady) {
+            Image(
+                bitmap = BitmapFactory.decodeResource(
+                    context.resources, R.drawable.wallpaper_tomoyo
+                ).asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit
+            )
+        }
+
+        // ---- scrim：上下渐深（状态栏/导航栏可读），人物区通透 ----
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -1118,7 +1162,7 @@ private fun HarnessWallpaperBackground(modifier: Modifier = Modifier) {
                     )
                 }
         )
-        // 壁纸取色环境光斑：冰蓝 / 蓝灰(schemecolor) / 雪白 / 雾紫
+        // ---- 取色光斑：冰蓝 / 蓝灰 / 雪白 / 雾紫，缓慢漂移供玻璃折射 ----
         AmbientBlob(
             color = Color(0xFFBFD2F2), // 冰蓝（发色高光）
             diameter = 560f,
@@ -1151,89 +1195,40 @@ private fun HarnessWallpaperBackground(modifier: Modifier = Modifier) {
 }
 
 /**
- * 壁纸取景适配（横屏壁纸 · 竖屏旋转 90° 显示，与 DeepSeek Harness 插件行为一致）：
+ * 壁纸取景适配（静态帧回退路径，横屏帧按比例铺满）：
  *
- * 壁纸源为 2560×1440 横屏画面（人物在右侧 60%，左侧雪景树影），
- * 资源文件已裁掉视频黑边（1440×731）。
- *
- *   · 竖屏（screenH/W > 1.05）：整幅画面顺时针旋转 90° 铺满 —— 画面高度
- *     （731）旋转后变成水平方向，按屏宽缩放；人物（原图右侧）旋转后位于
- *     上半部，焦点下移 40% 让人物落在屏幕视觉中心。
- *   · 横屏：正常显示，按高度铺满，水平焦点 60%（对准人物）。
- *   · 旋转后左右超出部分裁切，不变形。
+ * 动态视频已预旋转为 720×1280 竖屏（见 HarnessWallpaperBackground），
+ * 此处静态帧同样使用预旋转后的画面：竖屏直接 Fit 铺满，横屏按高铺满取人物焦点。
  */
 @Composable
 private fun WallpaperFraming(modifier: Modifier = Modifier) {
+    val imgW = 720f
+    val imgH = 1280f
     BoxWithConstraints(modifier) {
         val density = LocalDensity.current
         val boxW = with(density) { maxWidth.toPx() }
         val boxH = with(density) { maxHeight.toPx() }
-        // 资源图实际尺寸（已裁黑边的横屏帧）
-        val imgW = 1440f
-        val imgH = 731f
 
         val screenRatio = boxH / boxW
-        val isPortrait = screenRatio > 1.05f
-        // 竖屏显示模式：true = 旋转 90° 完整展示横屏画面（当前）；
-        // false = Harness 同款 cover 裁切（裁掉左右保全高）。装上后想切换改这里即可。
-        val rotateInPortrait = true
-
-        if (isPortrait && rotateInPortrait) {
-            // ---- 竖屏：顺时针旋转 90° ----
-            // 旋转后画面在父坐标系中占：宽 = imgH*scale，高 = imgW*scale
-            // 按屏宽铺满：scale = boxW / imgH（旋转后横向 = 原图高度方向）
-            val scale = boxW / imgH
-            val drawnH = imgW * scale                     // 旋转后画面的总高度
-            val overflowY = (drawnH - boxH).coerceAtLeast(0f)
-            // 人物在原图右侧（62%），rotationZ=90 顺时针旋转后原图右边缘
-            // 转到画面"上边缘"→ 人物在旋转后画面的上部。
-            // 焦点取画面纵向 40% 处（人物脸部）对准容器中心：
-            //   画面顶 = 容器中心 − drawnH * focus
-            //   translationY = 容器中心 − drawnH/2 − (画面顶偏移) → 简化 = −overflowY * (focus − 0.5)
-            val focusY = 0.40f
-            val translationY = -overflowY * (focusY - 0.5f)
-            // 横向：旋转后画面宽恰好 = boxW（scale 按此定义），无余量
-            val translationX = 0f
-
+        if (screenRatio > 1.05f) {
+            // 竖屏：720×1280 与手机屏比例接近，直接 Cover 铺满（轻微裁边）
             Image(
                 bitmap = BitmapFactory.decodeResource(
                     LocalContext.current.resources, R.drawable.wallpaper_tomoyo
                 ).asImageBitmap(),
                 contentDescription = null,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        // graphicsLayer 变换顺序：scale → rotate → translate
-                        // （translate 是父坐标系像素偏移，不受旋转影响）
-                        scaleX = scale
-                        scaleY = scale
-                        rotationZ = 90f
-                        translationY = translationY
-                        translationX = translationX
-                    },
-                // Fit：位图按原始尺寸参与变换（缩放由 graphicsLayer 完成）
-                contentScale = ContentScale.Fit
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
             )
         } else {
-            // ---- 横屏：正常显示，按高铺满，焦点对准人物 ----
-            val scale = boxH / imgH
-            val scaledW = imgW * scale
-            val overflowX = (scaledW - boxW).coerceAtLeast(0f)
-            val offsetX = -overflowX * 0.62f  // 焦点：人物所在的原图 62% 处
-
+            // 横屏：按高铺满，水平居中
             Image(
                 bitmap = BitmapFactory.decodeResource(
                     LocalContext.current.resources, R.drawable.wallpaper_tomoyo
                 ).asImageBitmap(),
                 contentDescription = null,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
-                        translationX = offsetX / scale
-                    },
-                contentScale = ContentScale.Fit
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
             )
         }
     }
