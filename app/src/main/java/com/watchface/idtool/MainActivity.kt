@@ -63,10 +63,6 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 
 class MainActivity : ComponentActivity() {
 
-    override fun onResume() {
-        super.onResume()
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         // 启动屏（KernelSU 同款）：动画图标至少完整播放 500ms 再放行进入主页
         val splashStartedAt = android.os.SystemClock.uptimeMillis()
