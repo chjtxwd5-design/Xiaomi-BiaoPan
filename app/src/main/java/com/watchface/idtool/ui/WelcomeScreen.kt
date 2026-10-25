@@ -967,7 +967,7 @@ private fun PermissionStatusCard(
                     Icon(
                         Icons.Default.Refresh,
                         contentDescription = AppLocale.t("刷新"),
-                        tint = Color(0xFF333333),
+                        tint = IOSPalette.label,
                         modifier = Modifier.size(18.dp)
                     )
                 }
