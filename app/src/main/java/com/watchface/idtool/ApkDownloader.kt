@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.core.content.FileProvider
+import com.watchface.idtool.util.TextUtil
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -84,17 +85,10 @@ object ApkDownloader {
     fun isCancelled(): Boolean = cancelledFlag.get()
 
     /**
-     * 修复 URL 中的 HTML 实体编码
+     * 修复 URL 中的 HTML 实体编码（已合并到 util.TextUtil，保留别名兼容既有调用）
      * QQ urlshare.cn 重定向返回的 Location 中 &amp; 应为 &
      */
-    private fun fixHtmlEntities(url: String): String {
-        return url
-            .replace("&amp;", "&")
-            .replace("&lt;", "<")
-            .replace("&gt;", ">")
-            .replace("&quot;", "\"")
-            .replace("&#39;", "'")
-    }
+    private fun fixHtmlEntities(url: String): String = TextUtil.unescapeHtmlEntities(url)
 
     /**
      * 下载 APK 文件，带进度跟踪 / 取消 / 自动重试
@@ -227,6 +221,7 @@ object ApkDownloader {
                 var downloadedBytes = alreadyDownloaded
                 var lastProgress = if (totalBytes > 0)
                     ((downloadedBytes * 100) / totalBytes).toInt() else -1
+                var lastEmitAt = 0L
                 var lastSpeedSample = System.currentTimeMillis()
                 var lastSpeedBytes = downloadedBytes
                 var speed = 0L
@@ -260,11 +255,14 @@ object ApkDownloader {
                                 -1
                             }
 
-                            // 进度变化或每 500ms（速度刷新）时发射状态
-                            if (progress != lastProgress || now - lastSpeedSample < 10) {
+                            // 节流发射（深度优化：100MB APK 从约 6400 次重组降到约 300 次）
+                            // 条件：进度变化 ≥1%，或距上次发射 ≥500ms（顺带刷新速度）；
+                            // progress == -1（总大小未知）不再被 coerceIn 抹成 0
+                            if ((progress != lastProgress && progress >= 0) || now - lastEmitAt >= 500) {
                                 lastProgress = progress
+                                lastEmitAt = now
                                 _downloadState.value = DownloadState.Downloading(
-                                    progress = progress.coerceIn(0, 100),
+                                    progress = if (progress >= 0) progress.coerceIn(0, 100) else -1,
                                     downloadedBytes = downloadedBytes,
                                     totalBytes = totalBytes,
                                     speedBytesPerSec = speed
