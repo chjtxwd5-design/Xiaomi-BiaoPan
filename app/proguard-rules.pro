@@ -1,5 +1,8 @@
 # Watchface ID Tool - R8 Rules (Java 21 / Kotlin 2.1)
-# 启用后 R8 会执行：类裁剪、方法内联、字符串折叠、Dead Code Elimination
+# 深度优化版：
+#   - 删除了原三条巨型 keep（androidx.compose.ui / 本项目 ui / kotlinx.coroutines 全量保留），
+#     Compose 与协程库自带 consumer rules，无需手动 keep；全量 keep 会让 R8 裁剪/混淆收益归零。
+#   - 仅保留 JNI、反射、sealed 类型匹配等真正需要的规则。
 
 # ---- 保护微验 SDK（libwyverify.so JNI 静态符号注册，类名/方法名不可混淆） ----
 # native 方法符号为 Java_com_watchface_idtool_weiyan_WYVerify_native*，R8 混淆会
@@ -7,11 +10,7 @@
 -keep class com.watchface.idtool.weiyan.** { *; }
 -dontwarn com.watchface.idtool.weiyan.**
 
-# ---- Shizuku（反射调用，保留入口） ----
--keep class rikka.shizuku.** { *; }
--keep interface rikka.shizuku.** { *; }
-
-# ---- T3 SDK（仅保留实际调用的方法，删除未使用代码） ----
+# ---- T3 SDK（JNI 反射写入结果类字段，保留结构） ----
 -keep class com.watchface.idtool.oplusdk.SagVerify {
     public <fields>;
     public <methods>;
@@ -27,73 +26,35 @@
 -keepclassmembers class com.watchface.idtool.oplusdk.SagVerify$T3CoreResult { *; }
 -keepclassmembers class com.watchface.idtool.oplusdk.SagVerify$T3OnlineResult { *; }
 -keepclassmembers class com.watchface.idtool.oplusdk.SagVerify$T3AppSignResult { *; }
-
-# 删除 T3Verify 中未被本项目调用的死方法（QQ/用户注册/变量等）
 -dontwarn com.watchface.idtool.oplusdk.SagVerify
 
-# ---- Compose（运行时反射需要） ----
--keepclassmembers class ** {
-    @androidx.compose.runtime.Composable *;
-    @androidx.compose.runtime.SaveableComposable *;
-}
--keep class androidx.compose.ui.** { *; }
+# ---- Shizuku（ShizukuExecutor 通过反射调用 Shizuku.newProcess，保留入口） ----
+-keep class rikka.shizuku.** { *; }
+-keep interface rikka.shizuku.** { *; }
+-dontwarn rikka.shizuku.**
 
-# ---- 导航（路由字符串） ----
--keep class com.watchface.idtool.ui.** { *; }
-
-# ---- 协程/Flow（反射需要） ----
--keep class kotlinx.coroutines.** { *; }
--keep interface kotlinx.coroutines.internal.** { *; }
+# ---- Kotlin 元数据与协程调试信息（协程库自带 consumer rules，仅补齐属性） ----
+-keepattributes Signature, InnerClasses, EnclosingMethod
+-keepattributes RuntimeVisibleAnnotations, RuntimeVisibleParameterAnnotations
+-keepattributes AnnotationDefault
 -dontwarn kotlinx.coroutines.**
 
-# ---- 保留 sealed class（运行时 instanceof 模式匹配） ----
--keep class com.watchface.idtool.ApkDownloader$DownloadState { *; }
--keep class com.watchface.idtool.PermissionStatus { *; }
--keep class com.watchface.idtool.SagAuthManager$AuthResult { *; }
--keep class com.watchface.idtool.SagAuthManager$NoticeVersion { *; }
--keep class com.watchface.idtool.LogKeyExtractor$ExtractResult { *; }
--keep class com.watchface.idtool.LogKeyExtractor$TokenInfo { *; }
--keep class com.watchface.idtool.WatchfaceParser$WatchfaceInfo { *; }
+# ---- sealed class / data class 的 instanceof 与 copy 结构（Kotlin 编译器已保证，
+#      无需手动 keep；仅保留被字符串路由/序列化间接引用的核心模型） ----
 -keep class com.watchface.idtool.CloudConfigManager$CloudConfig { *; }
--keep class com.watchface.idtool.UiState { *; }
--keep class com.watchface.idtool.ImportedFile { *; }
--keep class com.watchface.idtool.WatchfaceRecord { *; }
 
-# ---- R8 强优化开关 ----
--optimizationpasses 5
+# ---- R8 通用优化 ----
 -allowaccessmodification
--mergeinterfacesaggressively
 -useuniqueclassmembernames
 
-# 字符串常量折叠（I18n 字典中大量字符串常量可被折叠）
--assumenosideeffects class java.lang.String {
-    static java.lang.String valueOf(...);
+# 移除调试日志（Release 不输出 Log.d/i/w/v，减小体积并避免信息泄漏）
+-assumenosideeffects class android.util.Log {
+    public static int d(...);
+    public static int i(...);
+    public static int w(...);
+    public static int v(...);
 }
 
-# 保留调试日志（不移除 Log.d/i/w/v）
-# -assumenosideeffects class android.util.Log {
-#     public static int d(...);
-#     public static int i(...);
-#     public static int w(...);
-#     public static int v(...);
-# }
-
-# ---- 进一步缩减 dex 体积 ----
-# 去除无用资源引用
 -dontnote org.json.**
--dontnote java.lang.invoke.**
-
-# 压缩 JSON 相关类（仅保留必要的接口）
--keepclassmembers class org.json.** { *; }
 -dontwarn org.json.**
-
-# 移除 com.google.protobuf 警告（如果存在）
 -dontwarn com.google.protobuf.**
-
-# 消费者规则：让外部库也使用 R8 优化
--keepattributes Signature, InnerClasses, EnclosingMethod
--keepattributes BootstrapMethods
-
-# 针对 SoundPool 音效优化
--keep class android.media.SoundPool { *; }
--dontwarn android.media.SoundPool
