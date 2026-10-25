@@ -14,6 +14,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import com.watchface.idtool.ui.AppLocale
+import com.watchface.idtool.util.TextUtil
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -86,7 +87,9 @@ object SagAuthManager {
     private var currentKami: String = ""
     private var currentToken: String = ""
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + kotlinx.coroutines.CoroutineExceptionHandler { _, _ ->
+        // 全局兜底：后台协程未捕获异常不再导致进程崩溃
+    })
     private var heartbeatJob: Job? = null
     private var restoreJob: Job? = null
 
@@ -284,8 +287,14 @@ object SagAuthManager {
         }
         val sp = context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
         val kamiBlob = sp.getString(KEY_KAMI, "") ?: ""
-        val kami = decryptKami(context, kamiBlob) ?: kamiBlob
-        if (kami.isEmpty()) {
+        // 安全修复：解密失败（换设备/恢复备份导致 ANDROID_ID 变化）时视为无凭据，
+        // 不再把密文当作卡密去登录
+        val kami = if (kamiBlob.isNotEmpty()) decryptKami(context, kamiBlob) else null
+        if (kami.isNullOrEmpty()) {
+            if (kamiBlob.isNotEmpty()) {
+                // 有密文但解不开：清除无效凭据
+                sp.edit().clear().apply()
+            }
             isRestoringSession = false
             return
         }
@@ -295,35 +304,49 @@ object SagAuthManager {
 
         // 优先用保存的 token 心跳验证恢复会话；令牌失效则重新登录
         var ok = false
-        val v = ensureInit(context)
-        if (v != null && currentToken.isNotEmpty()) {
-            val r = withContext(Dispatchers.IO) {
-                v.heartbeat(kami, getMachineCode(context), currentToken)
+        var networkError = false
+        try {
+            val v = ensureInit(context)
+            if (v != null && currentToken.isNotEmpty()) {
+                val r = withContext(Dispatchers.IO) {
+                    v.heartbeat(kami, getMachineCode(context), currentToken)
+                }
+                if (r.success) {
+                    // 心跳验证通过：恢复登录态并重启心跳，否则 UI 仍显示未登录
+                    setLoginState(true)
+                    startHeartbeat(context)
+                    endTime = formatEndTime(r.endTime)
+                    if (r.timetypeName?.isNotEmpty() == true) cardTypeName = r.timetypeName
+                    if (r.onlinenum?.isNotEmpty() == true) onlineNum = r.onlinenum
+                    lastError = ""
+                    ok = true
+                }
             }
-            if (r.success) {
-                // 心跳验证通过：恢复登录态并重启心跳，否则 UI 仍显示未登录
-                setLoginState(true)
-                startHeartbeat(context)
-                endTime = formatEndTime(r.endTime)
-                if (r.timetypeName?.isNotEmpty() == true) cardTypeName = r.timetypeName
-                if (r.onlinenum?.isNotEmpty() == true) onlineNum = r.onlinenum
-                lastError = ""
-                ok = true
+            if (!ok) {
+                val result = login(context, kami, fromRestore = true)
+                ok = result.success
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // 崩溃修复：SDK/JNI/网络异常不再沿协程逃逸导致启动崩溃
+            networkError = true
         }
         if (!ok) {
-            val result = login(context, kami, fromRestore = true)
-            ok = result.success
-        }
-        if (!ok) {
-            currentKami = ""
-            currentToken = ""
-            endTime = ""
-            cardTypeName = ""
-            onlineNum = ""
-            currentKamiMasked = ""
-            setLoginState(false)
-            sp.edit().clear().apply()
+            if (networkError) {
+                // 数据修复：纯网络/SDK 故障不清空用户凭据，下次启动再试
+                setLoginState(false)
+            } else {
+                // 卡密确认无效/被封：才清空本地凭据
+                currentKami = ""
+                currentToken = ""
+                endTime = ""
+                cardTypeName = ""
+                onlineNum = ""
+                currentKamiMasked = ""
+                setLoginState(false)
+                sp.edit().clear().apply()
+            }
         }
         isRestoringSession = false
         _restoreState.value = false
@@ -437,11 +460,12 @@ object SagAuthManager {
                     val remain = if (r.remain > 0) AppLocale.tf("（剩余解绑次数：{0}）", r.remain) else ""
                     AuthResult(true, AppLocale.tf("已退出登录（设备已解绑）{0}", remain))
                 } else {
-                    AuthResult(true, AppLocale.tf("已退出登录（{0}）", (r.msg ?: "").ifBlank { AppLocale.t("解绑失败") }))
+                    // 解绑失败如实告知（本地已退出，但服务端设备可能仍绑定）
+                    AuthResult(false, AppLocale.tf("已退出登录，但设备解绑失败（{0}）", (r.msg ?: "").ifBlank { AppLocale.t("解绑失败") }))
                 }
             } catch (e: Exception) {
                 logout(context)
-                AuthResult(true, AppLocale.tf("已退出登录（{0}）", e.message ?: AppLocale.t("解绑异常")))
+                AuthResult(false, AppLocale.tf("已退出登录，但设备解绑异常（{0}）", e.message ?: AppLocale.t("网络异常")))
             }
         }
 
@@ -457,7 +481,8 @@ object SagAuthManager {
     }
 
     fun skipLogin() {
-        isLoggedIn = true
+        // 同步 StateFlow 与兼容字段，避免两处登录态不一致
+        setLoginState(true)
         currentKamiMasked = "未登录"
     }
 
@@ -465,7 +490,8 @@ object SagAuthManager {
         if (!SagConfig.REMEMBER_KAMI) return ""
         val blob = context.getSharedPreferences(PREF, Context.MODE_PRIVATE)
             .getString(KEY_KAMI, "") ?: ""
-        return decryptKami(context, blob) ?: blob
+        // 安全修复：解密失败返回空串，不把密文当作卡密预填到登录框
+        return decryptKami(context, blob) ?: ""
     }
 
     // ================= 公告 / 更新 =================
@@ -502,36 +528,13 @@ object SagAuthManager {
                 if (u.success) {
                     latest = u.version
                     uplog = u.updateshow
-                    upurl = unescapeHtmlEntities(u.updateurl)
+                    upurl = TextUtil.unescapeHtmlEntities(u.updateurl)
                     hasUpdate = u.hasUpdate ||
-                        (latest.isNotEmpty() && compareVersion(latest, localVersion) > 0)
+                        (latest.isNotEmpty() && TextUtil.compareVersion(latest, localVersion) > 0)
                 }
             } catch (_: Exception) {
             }
 
             NoticeVersion(notice, latest, hasUpdate, uplog, upurl)
         }
-
-    private fun compareVersion(a: String, b: String): Int {
-        val pa = a.split(".", "-").mapNotNull { it.filter { c -> c.isDigit() }.toIntOrNull() }
-        val pb = b.split(".", "-").mapNotNull { it.filter { c -> c.isDigit() }.toIntOrNull() }
-        val n = maxOf(pa.size, pb.size)
-        for (i in 0 until n) {
-            val x = pa.getOrElse(i) { 0 }
-            val y = pb.getOrElse(i) { 0 }
-            if (x != y) return x.compareTo(y)
-        }
-        return 0
-    }
-
-    private fun unescapeHtmlEntities(s: String): String {
-        if (s.isEmpty()) return s
-        return s
-            .replace("&amp;", "&")
-            .replace("&lt;", "<")
-            .replace("&gt;", ">")
-            .replace("&quot;", "\"")
-            .replace("&#39;", "'")
-            .replace("&apos;", "'")
-    }
 }
