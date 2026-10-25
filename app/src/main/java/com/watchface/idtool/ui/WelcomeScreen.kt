@@ -164,23 +164,29 @@ fun WelcomeScreen(
     }
 
     // 密钥提取ZIP文件选择器 — 选择后自动提取
+    val zipScope = androidx.compose.runtime.rememberCoroutineScope()
     val zipPicker = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
-            val path = try {
-                val tempFile = File(context.cacheDir, "extract_${System.currentTimeMillis()}.zip")
-                context.contentResolver.openInputStream(it)?.use { input ->
-                    tempFile.outputStream().use { output -> input.copyTo(output) }
+            // 性能修复：ZIP 可达数十 MB，拷贝移入 IO 线程（此前在主线程回调中执行，易 ANR）
+            zipScope.launch {
+                val path = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    try {
+                        val tempFile = File(context.cacheDir, "extract_${System.currentTimeMillis()}.zip")
+                        context.contentResolver.openInputStream(it)?.use { input ->
+                            tempFile.outputStream().use { output -> input.copyTo(output) }
+                        }
+                        tempFile.absolutePath
+                    } catch (_: Exception) {
+                        null
+                    }
                 }
-                tempFile.absolutePath
-            } catch (_: Exception) {
-                null
-            }
-            if (path != null) {
-                viewModel.setExtractZipPath(path)
-                // 选择完成后自动触发提取，无需再手动点击
-                viewModel.extractLogKey()
+                if (path != null) {
+                    viewModel.setExtractZipPath(path)
+                    // 选择完成后自动触发提取，无需再手动点击
+                    viewModel.extractLogKey()
+                }
             }
         }
     }
