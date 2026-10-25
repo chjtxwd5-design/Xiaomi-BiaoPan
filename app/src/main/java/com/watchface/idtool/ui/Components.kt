@@ -1063,9 +1063,11 @@ private fun FlatBackground(modifier: Modifier = Modifier) {
 /**
  * DeepSeek Harness 动态壁纸背景（Tomoyo Sakagami 适配版）：
  *
- * 主层：assets/wallpaper_live.mp4 —— Harness 同款动态壁纸，
- *       已预旋转为 720×1280 竖屏、30s 无缝循环、60fps、1MB（H.264 Baseline）。
- *       AndroidView 包 VideoView 播放（零新依赖），循环播放无音轨。
+ * 主层：assets/wallpaper_live.mp4 —— Harness 同款动态壁纸原画面（2560×1440 横屏），
+ *       不旋转、不裁切源，播放时 TextureView 按 **Cover 自适应** 缩放：
+ *       等比放大到铺满屏幕，多余部分均匀居中裁掉（与 Harness objectFit=cover、
+ *       系统 wallpaper、ImageView CenterCrop 同一算法）。
+ *       竖屏 → 全高可见、左右居中裁；横屏 → 完整画面。任何屏幕比例全屏无黑边。
  * 回退：视频初始化失败 / 低配机型 → 静态帧 + 取色光斑（GPU 负担极低）。
  * 前景：分层 scrim（上下渐深保证文字可读，人物区通透）+ 漂移光斑供玻璃折射取色。
  */
@@ -1094,15 +1096,13 @@ private fun HarnessWallpaperBackground(modifier: Modifier = Modifier) {
     )
 
     var videoReady by remember { mutableStateOf(false) }
-    var videoFailed by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
     Box(modifier.fillMaxSize()) {
-        // ---- 主层：动态壁纸视频（循环播放，无音轨） ----
+        // ---- 主层：动态壁纸视频（Cover 自适应铺满，循环无音轨） ----
         AndroidView(
             factory = { ctx ->
                 android.widget.VideoView(ctx).apply {
-                    // 视频拷到私有目录播放（assets 流直接 setVideoURI 部分机型不兼容）
                     try {
                         val file = java.io.File(ctx.filesDir, "wallpaper_live.mp4")
                         if (!file.exists() || file.length() == 0L) {
@@ -1114,15 +1114,34 @@ private fun HarnessWallpaperBackground(modifier: Modifier = Modifier) {
                         setOnPreparedListener { mp ->
                             mp.isLooping = true
                             mp.setVolume(0f, 0f)
+                            // Cover 自适应核心：视频尺寸就绪后按 TextureView 实际
+                            // 大小等比放大至完全覆盖，居中裁掉溢出部分
+                            mp.setOnVideoSizeChangedListener { _, vw, vh ->
+                                if (vw > 0 && vh > 0) {
+                                    val lp = layoutParams
+                                    val vwF = vw.toFloat()
+                                    val vhF = vh.toFloat()
+                                    // 先铺满容器：取 scaleX/scaleY 的较大者
+                                    if (lp != null && lp.width > 0 && lp.height > 0) {
+                                        val sx = lp.width / vwF
+                                        val sy = lp.height / vhF
+                                        val s = maxOf(sx, sy)
+                                        scaleX = s
+                                        scaleY = s
+                                        pivotX = lp.width / 2f
+                                        pivotY = lp.height / 2f
+                                    }
+                                }
+                            }
                             videoReady = true
                             start()
                         }
                         setOnErrorListener { _, _, _ ->
-                            videoFailed = true
+                            videoReady = false
                             true
                         }
                     } catch (_: Exception) {
-                        videoFailed = true
+                        videoReady = false
                     }
                 }
             },
@@ -1130,7 +1149,7 @@ private fun HarnessWallpaperBackground(modifier: Modifier = Modifier) {
             modifier = Modifier.fillMaxSize()
         )
 
-        // ---- 回退层：静态帧（视频未就绪或失败时显示，避免黑屏闪烁） ----
+        // ---- 回退层：静态帧（视频未就绪时显示，避免黑屏闪烁） ----
         if (!videoReady) {
             Image(
                 bitmap = BitmapFactory.decodeResource(
@@ -1138,7 +1157,7 @@ private fun HarnessWallpaperBackground(modifier: Modifier = Modifier) {
                 ).asImageBitmap(),
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Fit
+                contentScale = ContentScale.Crop  // 静态帧同样 Cover 自适应
             )
         }
 
