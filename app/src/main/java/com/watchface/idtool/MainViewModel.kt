@@ -144,25 +144,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 )
                 // 安全修复：安装前校验 APK 签名与当前应用一致，防中间人替换安装包
                 // （下载链可能经 HTTP CDN 重定向，network config 已对必要域名放行明文）
+                // 校验含磁盘读取，放到协程 + IO 线程执行
                 val appContext = getApplication<Application>()
-                val signatureOk = withContext(Dispatchers.IO) {
-                    verifyApkSignature(appContext, state.file)
-                }
-                if (!signatureOk) {
-                    state.file.delete()
-                    _uiState.value = _uiState.value.copy(
-                        showDownloadProgress = false,
-                        downloadError = "更新包签名校验失败，已取消安装（可能被篡改，请从官方 Release 页面下载）",
-                        toastMessage = "更新包签名校验失败"
-                    )
-                    return
-                }
-                // 自动调起安装
-                val intent = ApkDownloader.installApk(appContext, state.file)
-                if (intent != null) {
-                    appContext.startActivity(intent)
-                }
                 viewModelScope.launch {
+                    val signatureOk = withContext(Dispatchers.IO) {
+                        verifyApkSignature(appContext, state.file)
+                    }
+                    if (!signatureOk) {
+                        withContext(Dispatchers.IO) { state.file.delete() }
+                        _uiState.value = _uiState.value.copy(
+                            showDownloadProgress = false,
+                            downloadError = "更新包签名校验失败，已取消安装（可能被篡改，请从官方 Release 页面下载）",
+                            toastMessage = "更新包签名校验失败"
+                        )
+                        ApkDownloader.reset()
+                        return@launch
+                    }
+                    // 自动调起安装
+                    val intent = ApkDownloader.installApk(appContext, state.file)
+                    if (intent != null) {
+                        appContext.startActivity(intent)
+                    }
                     kotlinx.coroutines.delay(500)
                     _uiState.value = _uiState.value.copy(showDownloadProgress = false)
                     ApkDownloader.reset()
