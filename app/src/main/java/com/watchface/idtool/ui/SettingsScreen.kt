@@ -41,6 +41,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -117,7 +118,7 @@ fun SettingsScreen(
         // ============ 界面与语言 ============
         StaggeredItem(index = 5) { SectionLabel("界面与语言") }
         Spacer(Modifier.height(10.dp))
-        StaggeredItem(index = 4) {
+        StaggeredItem(index = 6) {
             val savedLang = AppLocale.savedLang
             val langNative = AppLocale.LOCALES.firstOrNull { it.code == savedLang }?.native ?: "简体中文"
             InsetGroup {
@@ -205,7 +206,7 @@ fun SettingsScreen(
                     onClick = {
                         runCatching {
                             context.startActivity(
-                                Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/wanfeng090525/XiaoMi-Clock-dial"))
+                                Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/wanfeng090525/Xiaomi-BiaoPan"))
                             )
                         }
                     },
@@ -427,15 +428,20 @@ private fun LoginStatusSection() {
     var endTime by remember { mutableStateOf(SagAuthManager.endTime) }
     var kamiMask by remember { mutableStateOf(SagAuthManager.currentKamiMasked) }
     var showLoginDialog by remember { mutableStateOf(false) }
-    var kamiInput by remember { mutableStateOf(SagAuthManager.loadSavedKami(context)) }
+    // 性能修复：loadSavedKami 含 SP 读取 + AES 解密，移入协程（此前在组合期主线程执行）
+    var kamiInput by remember { mutableStateOf("") }
 
+    // 性能修复：每 400ms 轮询改为 collect loginState StateFlow（省电且状态即时）
     androidx.compose.runtime.LaunchedEffect(Unit) {
-        while (true) {
-            kotlinx.coroutines.delay(400)
-            loggedIn = SagAuthManager.isLoggedIn
-            endTime = SagAuthManager.endTime
-            kamiMask = SagAuthManager.currentKamiMasked
+        kamiInput = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            SagAuthManager.loadSavedKami(context)
         }
+    }
+    val loginStateState by SagAuthManager.loginState.collectAsState(initial = SagAuthManager.isLoggedIn)
+    androidx.compose.runtime.LaunchedEffect(loginStateState) {
+        loggedIn = loginStateState
+        endTime = SagAuthManager.endTime
+        kamiMask = SagAuthManager.currentKamiMasked
     }
 
     val visual = if (loggedIn) {
