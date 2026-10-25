@@ -33,68 +33,84 @@ val NumericFonts = FontFamily(
 )
 
 // ====================================================================
-// iOS 设计令牌（Design Tokens）
+// iOS 设计令牌（Design Tokens）· Tomoyo Sakagami 壁纸深度适配
+//
+// 全部语义色从壁纸取色（WE 工坊 2784334826 schemecolor 0.459/0.522/0.698）：
+//   冰蓝发色高光 #BFD2F2 / 蓝灰主色 #7585B2 / 眼瞳深蓝 #4A6FA5 / 雪白 #F6F8FC
 //
 // 层级模型（从下到上）：
-//   groupedBackground  #F2F2F7  页面底色
-//   card               #FFFFFF  InsetGrouped 卡片
-//   separator          #E5E5EA  1px 项间分割线
-//   label              #000000  主文本
-//   secondaryLabel     #8E8E93  次级文本 / 数值
-//   tint               #007AFF  高亮（链接、开关、选中）
-//   capsuleSelected    #E5F0FF  TabBar 选中胶囊底
+//   groupedBackground  #EDF1F9  雪白微蓝底（壁纸雪景色）
+//   card               玻璃面板（液体玻璃，非实心）
+//   separator          #DCE3F0  蓝灰分割线
+//   label              #1F2A44  墨蓝主文本（原纯黑改壁纸暗部色）
+//   secondaryLabel     #6B7A9B  蓝灰次级文本
+//   tint               #4A6FA5  眼瞳蓝（高亮，原 #007AFF 改壁纸同系）
+//   capsuleSelected    #E3EAF8  选中胶囊底
 // ====================================================================
 
 object IOSPalette {
 
-    // ---- 层级底色 ----
-    /** 页面底色（iOS grouped 背景） */
-    val groupedBackground = Color(0xFFF2F2F7)
+    // ---- 层级底色（壁纸雪景色系） ----
+    /** 页面底色（壁纸雪景微蓝白） */
+    val groupedBackground = Color(0xFFEDF1F9)
 
-    /** 卡片底色 */
-    val card = Color(0xFFFFFFFF)
+    /** 卡片底色（玻璃面板降级兜底） */
+    val card = Color(0xFFF8FAFE)
 
     /** 次级卡片 / 嵌插槽位底（如输入框、代码块） */
-    val cardSecondary = Color(0xFFF9F9FB)
+    val cardSecondary = Color(0xFFF3F6FC)
 
     /** TabBar 胶囊底 */
-    val tabBar = Color(0xFFFFFFFF)
+    val tabBar = Color(0xFFF8FAFE)
 
-    /** TabBar 选中胶囊底（中性半透明灰，iOS quaternary fill 风格的透明光效） */
-    val capsuleSelected = Color(0x1F767680)
+    /** TabBar 选中胶囊底（壁纸蓝灰的半透明光效） */
+    val capsuleSelected = Color(0x2E7585B2)
 
     // ---- 分割线 ----
     /** 项间 1px 分割线 */
-    val separator = Color(0xFFE5E5EA)
+    val separator = Color(0xFFDCE3F0)
 
     /** 卡片内缩进后的分割线起点留白后的视觉变体 */
-    val separatorSoft = Color(0xFFEFEFF4)
+    val separatorSoft = Color(0xFFE8EDF7)
 
-    // ---- 文本 ----
-    val label = Color(0xFF000000)
-    val secondaryLabel = Color(0xFF8E8E93)
-    val tertiaryLabel = Color(0xFFC7C7CC)
+    // ---- 文本（壁纸暗部墨蓝色系，对比度仍达 AA） ----
+    val label = Color(0xFF1F2A44)
+    val secondaryLabel = Color(0xFF6B7A9B)
+    val tertiaryLabel = Color(0xFFA8B4CC)
 
-    // ---- 高亮 ----
-    val tint = Color(0xFF007AFF)
-    val destructive = Color(0xFFFF3B30)
-    val success = Color(0xFF34C759)
-    val warning = Color(0xFFFF9500)
+    // ---- 高亮（壁纸眼瞳蓝色系） ----
+    val tint = Color(0xFF4A6FA5)
+    val destructive = Color(0xFFE0554D)
+    val success = Color(0xFF3FA97C)
+    val warning = Color(0xFFE09A3E)
 
-    // ---- 彩色图标瓦片底（红橙黄绿蓝紫）----
-    val tileRed = Color(0xFFFF3B30)
-    val tileOrange = Color(0xFFFF9500)
-    val tileYellow = Color(0xFFFFCC00)
-    val tileGreen = Color(0xFF34C759)
-    val tileBlue = Color(0xFF007AFF)
-    val tilePurple = Color(0xFFAF52DE)
-    val tileTeal = Color(0xFF30B0C7)
-    val tileIndigo = Color(0xFF5856D6)
-    val tileGray = Color(0xFF8E8E93)
-    val purple = Color(0xFFAF52DE)
+    // ---- 彩色图标瓦片底（统一到壁纸蓝灰家族 + 少量对比色）----
+    val tileRed = Color(0xFFE0554D)
+    val tileOrange = Color(0xFFE09A3E)
+    val tileYellow = Color(0xFFE5C05A)
+    val tileGreen = Color(0xFF3FA97C)
+    val tileBlue = Color(0xFF4A6FA5)
+    val tilePurple = Color(0xFF8B7FC7)
+    val tileTeal = Color(0xFF4E9FB8)
+    val tileIndigo = Color(0xFF6272BE)
+    val tileGray = Color(0xFF8E9AB5)
+    val purple = Color(0xFF8B7FC7)
 
     /** 瓦片内图标统一白色 */
     val tileGlyph = Color(0xFFFFFFFF)
+
+    // ---- 壁纸取色扩展令牌（供玻璃/特效组件使用） ----
+    /** 冰蓝发色高光 */
+    val wallpaperIceBlue = Color(0xFFBFD2F2)
+
+    /** 蓝灰主色（schemecolor） */
+    val wallpaperBlueGray = Color(0xFF7585B2)
+
+    /** 雪白高光 */
+    val wallpaperSnow = Color(0xFFF6F8FC)
+
+    /** 雾紫暗部 */
+    val wallpaperMistPurple = Color(0xFFD4D2EF)
 
     // ---- 交互 ----
     /** 按下时整体透明度（iOS Active state，26 风格更轻透） */
@@ -133,7 +149,7 @@ private val IOSLightColors = lightColorScheme(
     onTertiaryContainer = IOSPalette.label,
     error = IOSPalette.destructive,
     onError = Color.White,
-    errorContainer = Color(0xFFFFEBE9),
+    errorContainer = Color(0xFFFBE9E8),
     onErrorContainer = IOSPalette.destructive,
     background = IOSPalette.groupedBackground,
     onBackground = IOSPalette.label,
