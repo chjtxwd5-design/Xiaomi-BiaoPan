@@ -458,7 +458,7 @@ private fun QuickTile(
     Box(
         modifier = modifier
             .aspectRatio(1.55f)
-            // iOS 卡片：纯白底 + 16dp 圆角 + 弥散投影，无边框
+            // 液态玻璃卡片（iOS 26）
             .shadow(
                 elevation = 4.dp,
                 shape = tileShape,
@@ -467,8 +467,24 @@ private fun QuickTile(
                 ambientColor = Color.Black.copy(alpha = 0.03f)
             )
             .graphicsLayer { alpha = tilePressAlpha }
+            .liquidGlass(
+                shape = tileShape,
+                blurRadius = 8.dp,
+                lensHeight = 12.dp,
+                lensAmount = 16.dp,
+                chromaticAberration = false
+            )
+            .glass(
+                tileShape,
+                GlassColors(
+                    tintTop = Color.White.copy(alpha = 0.40f),
+                    tintBottom = Color.White.copy(alpha = 0.26f),
+                    highlight = Color.White.copy(alpha = 0.30f),
+                    rimBright = Color.White.copy(alpha = 0.60f),
+                    rimDim = IOSPalette.separator.copy(alpha = 0.6f)
+                )
+            )
             .clip(tileShape)
-            .background(IOSPalette.card)
             .clickable(
                 interactionSource = interaction,
                 indication = null
@@ -610,8 +626,25 @@ private fun HitokotoBar() {
                 spotColor = Color.Black.copy(alpha = 0.06f),
                 ambientColor = Color.Black.copy(alpha = 0.03f)
             )
+            // 时钟卡片：液态玻璃
+            .liquidGlass(
+                shape = hitokoShape,
+                blurRadius = 8.dp,
+                lensHeight = 12.dp,
+                lensAmount = 16.dp,
+                chromaticAberration = false
+            )
+            .glass(
+                hitokoShape,
+                GlassColors(
+                    tintTop = Color.White.copy(alpha = 0.40f),
+                    tintBottom = Color.White.copy(alpha = 0.26f),
+                    highlight = Color.White.copy(alpha = 0.30f),
+                    rimBright = Color.White.copy(alpha = 0.60f),
+                    rimDim = IOSPalette.separator.copy(alpha = 0.6f)
+                )
+            )
             .clip(hitokoShape)
-            .background(IOSPalette.card)
             .clickable(interactionSource = interaction, indication = null) {
                 refresh()
             }
@@ -904,18 +937,27 @@ private fun PermissionStatusCard(
             }
             if (status != PermissionStatus.CHECKING) {
                 Spacer(Modifier.width(10.dp))
-                // 刷新按钮：白底 + 1px 描边 + 深灰图标（与文字基线垂直居中）
+                // 刷新按钮：液态玻璃圆钮 + 深灰图标
                 Box(
                     modifier = Modifier
                         .size(36.dp)
-                        .clip(CircleShape)
-                        .background(IOSPalette.card)
-                        .drawBehind {
-                            drawCircle(
-                                color = IOSPalette.separator,
-                                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx())
+                        .liquidGlass(
+                            shape = CircleShape,
+                            blurRadius = 6.dp,
+                            lensHeight = 8.dp,
+                            lensAmount = 10.dp
+                        )
+                        .glass(
+                            CircleShape,
+                            GlassColors(
+                                tintTop = Color(0xFFFAFAFA).copy(alpha = 0.44f),
+                                tintBottom = Color(0xFFFAFAFA).copy(alpha = 0.30f),
+                                highlight = Color.White.copy(alpha = 0.32f),
+                                rimBright = Color.White.copy(alpha = 0.6f),
+                                rimDim = IOSPalette.separator.copy(alpha = 0.5f)
                             )
-                        }
+                        )
+                        .clip(CircleShape)
                         .clickable(
                             interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                             indication = null
@@ -1677,8 +1719,25 @@ private fun KeyExtractionTile(
             .fillMaxWidth()
             .glassShadow(8.dp, RoundedCornerShape(22.dp))
             .pressScale(interaction, pressedScale = 0.96f)
+            // 密钥提取入口：液态玻璃
+            .liquidGlass(
+                shape = RoundedCornerShape(22.dp),
+                blurRadius = 8.dp,
+                lensHeight = 12.dp,
+                lensAmount = 16.dp,
+                chromaticAberration = false
+            )
+            .glass(
+                RoundedCornerShape(22.dp),
+                GlassColors(
+                    tintTop = Color.White.copy(alpha = 0.40f),
+                    tintBottom = Color.White.copy(alpha = 0.26f),
+                    highlight = Color.White.copy(alpha = 0.30f),
+                    rimBright = Color.White.copy(alpha = 0.60f),
+                    rimDim = IOSPalette.separator.copy(alpha = 0.6f)
+                )
+            )
             .clip(RoundedCornerShape(22.dp))
-            .background(IOSPalette.card)
             .pressRipple(interaction, clipShape = RoundedCornerShape(22.dp), color = Color.Black.copy(alpha = 0.06f), intensity = 1f)
             .clickable(
                 interactionSource = interaction,
@@ -1816,8 +1875,25 @@ private fun KeyExtractionResultCard(
         modifier = Modifier
             .fillMaxWidth()
             .glassShadow(8.dp, RoundedCornerShape(22.dp))
+            // 提取结果卡：液态玻璃
+            .liquidGlass(
+                shape = RoundedCornerShape(22.dp),
+                blurRadius = 8.dp,
+                lensHeight = 12.dp,
+                lensAmount = 16.dp,
+                chromaticAberration = false
+            )
+            .glass(
+                RoundedCornerShape(22.dp),
+                GlassColors(
+                    tintTop = Color.White.copy(alpha = 0.40f),
+                    tintBottom = Color.White.copy(alpha = 0.26f),
+                    highlight = Color.White.copy(alpha = 0.30f),
+                    rimBright = Color.White.copy(alpha = 0.60f),
+                    rimDim = IOSPalette.separator.copy(alpha = 0.6f)
+                )
+            )
             .clip(RoundedCornerShape(22.dp))
-            .background(IOSPalette.card)
             .padding(horizontal = 18.dp, vertical = 16.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
