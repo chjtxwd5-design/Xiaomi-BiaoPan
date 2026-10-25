@@ -1,10 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- 允许所有域名的明文 HTTP 流量（QQ 分享下载链可能重定向到 HTTP CDN） -->
-    <base-config cleartextTrafficPermitted="true">
+    <!--
+      安全收敛：
+      1. 默认禁止明文 HTTP，仅对必要的国内 CDN/静态资源域名放行（部分分享链会重定向到 HTTP CDN）
+      2. 不再信任用户安装的证书（防止中间人劫持卡密验证/更新下载）
+      3. 系统证书信任保持不变
+    -->
+    <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
-            <certificates src="user" />
         </trust-anchors>
     </base-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">urlshare.cn</domain>
+        <domain includeSubdomains="true">qq.com</domain>
+        <domain includeSubdomains="true">gtimg.com</domain>
+        <domain includeSubdomains="true">myqcloud.com</domain>
+        <domain includeSubdomains="true">aliyuncs.com</domain>
+    </domain-config>
 </network-security-config>
