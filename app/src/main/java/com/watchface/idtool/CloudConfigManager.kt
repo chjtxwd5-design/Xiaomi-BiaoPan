@@ -2,6 +2,7 @@ package com.watchface.idtool
 
 import android.content.Context
 import android.content.pm.PackageManager
+import com.watchface.idtool.util.TextUtil
 
 /**
  * 公告 / 版本检查 —— 统一走微验 T4Verify（getNotice / checkUpdate）
@@ -32,7 +33,7 @@ object CloudConfigManager {
             SagAuthManager.init(context.applicationContext)
             val local = getCurrentVersion(context)
             val nv = SagAuthManager.fetchNoticeAndVersion(local)
-            val hasUpdate = compareVersion(nv.latestVersion, local) > 0
+            val hasUpdate = TextUtil.compareVersion(nv.latestVersion, local) > 0
             CloudConfig(
                 enabled = true,
                 announcement = nv.notice,
@@ -44,17 +45,5 @@ object CloudConfigManager {
         } catch (e: Exception) {
             null
         }
-    }
-
-    private fun compareVersion(a: String, b: String): Int {
-        val pa = a.split(".", "-").mapNotNull { it.filter { c -> c.isDigit() }.toIntOrNull() }
-        val pb = b.split(".", "-").mapNotNull { it.filter { c -> c.isDigit() }.toIntOrNull() }
-        val n = maxOf(pa.size, pb.size)
-        for (i in 0 until n) {
-            val x = pa.getOrElse(i) { 0 }
-            val y = pb.getOrElse(i) { 0 }
-            if (x != y) return x.compareTo(y)
-        }
-        return 0
     }
 }
