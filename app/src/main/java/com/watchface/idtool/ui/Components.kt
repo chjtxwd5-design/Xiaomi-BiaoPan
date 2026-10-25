@@ -1151,17 +1151,16 @@ private fun HarnessWallpaperBackground(modifier: Modifier = Modifier) {
 }
 
 /**
- * 壁纸取景适配（深度适配比例）：
+ * 壁纸取景适配（横屏壁纸 · 竖屏旋转 90° 显示，与 DeepSeek Harness 插件行为一致）：
  *
- * 壁纸为 1024×1024 方图，人脸核心区在原图纵轴 35%~65%（眼睛 ≈48%）。
- * 竖屏 Crop 铺满时上下共裁掉约一半，需要把取景焦点对准脸部：
+ * 壁纸源为 2560×1440 横屏画面（人物在右侧 60%，左侧雪景树影），
+ * 资源文件已裁掉视频黑边（1440×731）。
  *
- *   · 竖屏（screenH/W > 1.05）：按宽度铺满，垂直焦点 = 原图 45%（微上移保住眼睛）
- *   · 横屏/平板：按高度铺满，水平居中（人物在原图中央）
- *   · 极端长屏（折叠屏 21:9+）：限制放大不超过 2.2 倍，超出部分用雪白补边
- *     而不是继续放大裁掉人物
- *
- * 用 BoxWithConstraints 实测容器尺寸计算缩放与偏移，任何屏幕比例都不变形。
+ *   · 竖屏（screenH/W > 1.05）：整幅画面顺时针旋转 90° 铺满 —— 画面高度
+ *     （731）旋转后变成水平方向，按屏宽缩放；人物（原图右侧）旋转后位于
+ *     上半部，焦点下移 40% 让人物落在屏幕视觉中心。
+ *   · 横屏：正常显示，按高度铺满，水平焦点 60%（对准人物）。
+ *   · 旋转后左右超出部分裁切，不变形。
  */
 @Composable
 private fun WallpaperFraming(modifier: Modifier = Modifier) {
@@ -1169,46 +1168,74 @@ private fun WallpaperFraming(modifier: Modifier = Modifier) {
         val density = LocalDensity.current
         val boxW = with(density) { maxWidth.toPx() }
         val boxH = with(density) { maxHeight.toPx() }
-        val imgW = 1024f
-        val imgH = 1024f
+        // 资源图实际尺寸（已裁黑边的横屏帧）
+        val imgW = 1440f
+        val imgH = 731f
 
         val screenRatio = boxH / boxW
-        // 基础缩放：竖屏按宽铺满，横屏按高铺满
-        var scale = if (screenRatio > 1.05f) boxW / imgW else boxH / imgH
-        // 折叠屏/长屏护栏：放大倍率封顶（2.2 倍宽铺满），避免人物被过度裁切
-        val maxScale = boxH / imgH * 1.35f
-        if (screenRatio > 1.05f && scale > maxScale) scale = maxScale
+        val isPortrait = screenRatio > 1.05f
+        // 竖屏显示模式：true = 旋转 90° 完整展示横屏画面（当前）；
+        // false = Harness 同款 cover 裁切（裁掉左右保全高）。装上后想切换改这里即可。
+        val rotateInPortrait = true
 
-        // 缩放后的画布与屏幕差值 = 可裁切余量
-        val scaledW = imgW * scale
-        val scaledH = imgH * scale
-        val overflowX = (scaledW - boxW).coerceAtLeast(0f)
-        val overflowY = (scaledH - boxH).coerceAtLeast(0f)
+        if (isPortrait && rotateInPortrait) {
+            // ---- 竖屏：顺时针旋转 90° ----
+            // 旋转后画面在父坐标系中占：宽 = imgH*scale，高 = imgW*scale
+            // 按屏宽铺满：scale = boxW / imgH（旋转后横向 = 原图高度方向）
+            val scale = boxW / imgH
+            val drawnH = imgW * scale                     // 旋转后画面的总高度
+            val overflowY = (drawnH - boxH).coerceAtLeast(0f)
+            // 人物在原图右侧（62%），rotationZ=90 顺时针旋转后原图右边缘
+            // 转到画面"上边缘"→ 人物在旋转后画面的上部。
+            // 焦点取画面纵向 40% 处（人物脸部）对准容器中心：
+            //   画面顶 = 容器中心 − drawnH * focus
+            //   translationY = 容器中心 − drawnH/2 − (画面顶偏移) → 简化 = −overflowY * (focus − 0.5)
+            val focusY = 0.40f
+            val translationY = -overflowY * (focusY - 0.5f)
+            // 横向：旋转后画面宽恰好 = boxW（scale 按此定义），无余量
+            val translationX = 0f
 
-        // 焦点：脸部中心（原图 0.50, 0.45）对准屏幕中心
-        // 可用余量内移动：竖屏时把焦点上移，横屏时水平居中
-        val focusX = 0.50f
-        val focusY = 0.45f
-        val offsetX = -overflowX * focusX
-        val offsetY = -overflowY * focusY
+            Image(
+                bitmap = BitmapFactory.decodeResource(
+                    LocalContext.current.resources, R.drawable.wallpaper_tomoyo
+                ).asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        // graphicsLayer 变换顺序：scale → rotate → translate
+                        // （translate 是父坐标系像素偏移，不受旋转影响）
+                        scaleX = scale
+                        scaleY = scale
+                        rotationZ = 90f
+                        translationY = translationY
+                        translationX = translationX
+                    },
+                // Fit：位图按原始尺寸参与变换（缩放由 graphicsLayer 完成）
+                contentScale = ContentScale.Fit
+            )
+        } else {
+            // ---- 横屏：正常显示，按高铺满，焦点对准人物 ----
+            val scale = boxH / imgH
+            val scaledW = imgW * scale
+            val overflowX = (scaledW - boxW).coerceAtLeast(0f)
+            val offsetX = -overflowX * 0.62f  // 焦点：人物所在的原图 62% 处
 
-        Image(
-            bitmap = BitmapFactory.decodeResource(
-                LocalContext.current.resources, R.drawable.wallpaper_tomoyo
-            ).asImageBitmap(),
-            contentDescription = null,
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
-                    translationX = offsetX
-                    translationY = offsetY
-                },
-            contentScale = ContentScale.Fit,
-            alignment = androidx.compose.ui.Alignment.TopStart
-        )
+            Image(
+                bitmap = BitmapFactory.decodeResource(
+                    LocalContext.current.resources, R.drawable.wallpaper_tomoyo
+                ).asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                        translationX = offsetX / scale
+                    },
+                contentScale = ContentScale.Fit
+            )
+        }
     }
 }
 
