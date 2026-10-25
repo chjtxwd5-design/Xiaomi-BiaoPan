@@ -43,13 +43,11 @@ jobs:
       - name: 缓存 Gradle（依赖 + 构建缓存）
         uses: gradle/actions/setup-gradle@v4
 
-      - name: 生成本地配置并预置 SDK 许可
+      - name: 生成本地配置
         run: |
           echo "sdk.dir=$ANDROID_HOME" > local.properties
-          # 直接写入许可哈希文件，比 sdkmanager --licenses 快十几秒
-          mkdir -p "$ANDROID_HOME/licenses"
-          printf "8933bad161af4178b1185d1a37fbf41ea5269c55\n24333f8a63b6825ea9c5514f83c2829b004d1fee\nd56f5187479451eabf01fb78af6dfcb131a6481e\n" > "$ANDROID_HOME/licenses/android-sdk-license"
-          printf "84831b9409646a918e30573bab4c7c9a3522867b\n" > "$ANDROID_HOME/licenses/android-sdk-preview-license"
+          # ubuntu-latest runner 已预接受 SDK 许可，无需手写许可哈希文件
+          # （旧写法在 SDK 升级后哈希会失效导致构建失败，已移除）
 
       # 微验 .so 缓存：app/src/main/jni 源码/构建脚本未变时直接复用，
       # 跳过约 20s 的 ndk-build。key 含源码哈希，源码一改即失效并重新编译。
@@ -126,17 +124,17 @@ jobs:
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
         run: |
           TASKS="assembleRelease"
-          if [ "${{ github.event.inputs.debug }}" = "开启" ]; then
+          if [ "${{ inputs.debug }}" = "开启" ]; then
             TASKS="assembleDebug $TASKS"
           fi
           FLAGS=""
-          if [ "${{ github.event.inputs.r8 }}" = "关闭" ]; then
+          if [ "${{ inputs.r8 }}" = "关闭" ]; then
             FLAGS="-Pr8=false"
           fi
           ./gradlew $TASKS $FLAGS
 
       - name: 上传 Debug APK
-        if: github.event.inputs.debug == '开启'
+        if: inputs.debug == '开启'
         uses: actions/upload-artifact@v4
         with:
           name: watchface-apk-debug
@@ -171,3 +169,8 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 防御性清理：构建产物目录中的签名密钥不留在工作区
+      - name: 清理签名密钥
+        if: always()
+        run: rm -rf app/keystore
