@@ -411,8 +411,25 @@ private fun FileDropCard(
                 ambientColor = Color.Black.copy(alpha = 0.02f)
             )
             .graphicsLayer { alpha = dropPressAlpha }
+            // 文件导入区：液态玻璃面板
+            .liquidGlass(
+                shape = shape,
+                blurRadius = 8.dp,
+                lensHeight = 12.dp,
+                lensAmount = 16.dp,
+                chromaticAberration = false
+            )
+            .glass(
+                shape,
+                GlassColors(
+                    tintTop = Color.White.copy(alpha = 0.40f),
+                    tintBottom = Color.White.copy(alpha = 0.26f),
+                    highlight = Color.White.copy(alpha = 0.30f),
+                    rimBright = Color.White.copy(alpha = 0.60f),
+                    rimDim = IOSPalette.separator.copy(alpha = 0.6f)
+                )
+            )
             .clip(shape)
-            .background(IOSPalette.card)
             .drawBehind {
                 // 1px 虚线描边（iOS dashed border）：未选蓝、已选绿
                 val outline = shape.createOutline(size, layoutDirection, this)
