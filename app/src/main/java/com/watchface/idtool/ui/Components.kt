@@ -968,9 +968,9 @@ fun AppBackground(modifier: Modifier = Modifier) {
     val bgModifier = if (backdrop != null) modifier.layerBackdrop(backdrop) else modifier
     when (cfg.mode) {
         BgMode.LIQUID -> {
-            // iOS 26 Liquid Glass：粉彩光斑环境光背景，
-            // 为全 App 的液态玻璃面板提供可折射的色彩与明暗
-            LiquidAmbientBackground(bgModifier)
+            // DeepSeek Harness 同款壁纸（Tomoyo Sakagami，WE 工坊 2784334826）
+            // + 从壁纸取色的蓝灰环境光斑，液态玻璃折射的就是壁纸本身的色彩
+            HarnessWallpaperBackground(bgModifier)
         }
 
         BgMode.COLOR -> ColorBackground(cfg.color, bgModifier)
@@ -1014,7 +1014,7 @@ fun AppBackground(modifier: Modifier = Modifier) {
     }
 }
 
-/** 图片提亮蒙版：iOS 浅色主题下压一层白，保证白卡片与深色文字可读 */
+/** 图片提亮蒙版：浅色主题下压一层雪白，保证玻璃卡片与墨蓝文字可读 */
 @Composable
 private fun PhotoScrim(modifier: Modifier = Modifier) {
     Box(
@@ -1024,10 +1024,10 @@ private fun PhotoScrim(modifier: Modifier = Modifier) {
                 drawRect(
                     brush = Brush.verticalGradient(
                         colors = listOf(
-                            Color(0xFFF2F2F7).copy(alpha = 0.72f),
-                            Color(0xFFF2F2F7).copy(alpha = 0.62f),
-                            Color(0xFFF2F2F7).copy(alpha = 0.68f),
-                            Color(0xFFF2F2F7).copy(alpha = 0.78f)
+                            IOSPalette.groupedBackground.copy(alpha = 0.72f),
+                            IOSPalette.groupedBackground.copy(alpha = 0.62f),
+                            IOSPalette.groupedBackground.copy(alpha = 0.68f),
+                            IOSPalette.groupedBackground.copy(alpha = 0.78f)
                         ),
                         startY = 0f,
                         endY = size.height
@@ -1060,67 +1060,153 @@ private fun FlatBackground(modifier: Modifier = Modifier) {
 }
 
 /**
- * iOS 26 Liquid Glass 环境光背景（参照官方 Backdrop Catalog 演示）：
+ * DeepSeek Harness 壁纸背景（Tomoyo Sakagami 适配版）：
  *
- * 液态玻璃的折射观感来自背景的色彩与明暗变化 —— 官方 demo 均使用彩色环境光。
- * 实现：浅色基底 + 4 团大尺度粉彩径向光斑，各光斑以不同周期缓慢漂移
- * （graphicsLayer 平移静态渐变层，只变换不重绘，GPU 负担极低），
- * 为全 App 的 liquidGlass 面板提供柔和的折射色彩源。
+ * 底层：Harness 壁纸静态图（WE 工坊 2784334826 preview，1024×1024，Crop 铺满），
+ *       压一层轻微白 scrim 保证浅色主题文字可读；
+ * 光斑：全部从壁纸取色 —— 冰蓝 / 蓝灰 / 雪白 / 雾紫，缓慢漂移，
+ *       让液态玻璃面板折射出的正是壁纸本身的色彩体系。
  */
 @Composable
-private fun LiquidAmbientBackground(modifier: Modifier = Modifier) {
-    val transition = rememberInfiniteTransition(label = "ambientBg")
-
-    // 各光斑相位错开的漂移进度（0..1 往复）
+private fun HarnessWallpaperBackground(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "harnessBg")
     val drift1 by transition.animateFloat(
         initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(26_000, easing = LinearEasing), RepeatMode.Reverse),
-        label = "drift1"
+        animationSpec = infiniteRepeatable(tween(30_000, easing = LinearEasing), RepeatMode.Reverse),
+        label = "hDrift1"
     )
     val drift2 by transition.animateFloat(
         initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(34_000, easing = LinearEasing), RepeatMode.Reverse),
-        label = "drift2"
+        animationSpec = infiniteRepeatable(tween(38_000, easing = LinearEasing), RepeatMode.Reverse),
+        label = "hDrift2"
     )
     val drift3 by transition.animateFloat(
         initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(42_000, easing = LinearEasing), RepeatMode.Reverse),
-        label = "drift3"
+        animationSpec = infiniteRepeatable(tween(46_000, easing = LinearEasing), RepeatMode.Reverse),
+        label = "hDrift3"
     )
     val drift4 by transition.animateFloat(
         initialValue = 0f, targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(50_000, easing = LinearEasing), RepeatMode.Reverse),
-        label = "drift4"
+        animationSpec = infiniteRepeatable(tween(54_000, easing = LinearEasing), RepeatMode.Reverse),
+        label = "hDrift4"
     )
 
-    Box(modifier.fillMaxSize().background(IOSPalette.groupedBackground)) {
+    Box(modifier.fillMaxSize()) {
+        // 壁纸底图（自绘取景适配，见 WallpaperFraming 说明）
+        WallpaperFraming(
+            modifier = Modifier.fillMaxSize()
+        )
+        // 分层 scrim：上下边缘渐深（状态栏/导航栏文字可读），
+        // 人物核心区（屏幕中段）保持通透，玻璃折射不受影响
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .drawBehind {
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                IOSPalette.wallpaperSnow.copy(alpha = 0.55f),
+                                IOSPalette.wallpaperSnow.copy(alpha = 0.22f),
+                                IOSPalette.wallpaperSnow.copy(alpha = 0.16f),
+                                IOSPalette.wallpaperSnow.copy(alpha = 0.30f),
+                                IOSPalette.wallpaperSnow.copy(alpha = 0.52f)
+                            ),
+                            startY = 0f,
+                            endY = size.height
+                        )
+                    )
+                }
+        )
+        // 壁纸取色环境光斑：冰蓝 / 蓝灰(schemecolor) / 雪白 / 雾紫
         AmbientBlob(
-            color = Color(0xFFFFD9EC), // 樱粉
-            diameter = 520f,
-            startOffset = Offset(-0.12f, -0.08f),
-            driftX = 0.22f, driftY = 0.12f,
+            color = Color(0xFFBFD2F2), // 冰蓝（发色高光）
+            diameter = 560f,
+            startOffset = Offset(-0.10f, -0.10f),
+            driftX = 0.20f, driftY = 0.12f,
             progress = drift1
         )
         AmbientBlob(
-            color = Color(0xFFC9D8FF), // 雾蓝
-            diameter = 560f,
-            startOffset = Offset(0.62f, 0.04f),
-            driftX = -0.18f, driftY = 0.16f,
+            color = Color(0xFF8CA0D8), // 蓝灰 = 壁纸 schemecolor 0.459/0.522/0.698
+            diameter = 600f,
+            startOffset = Offset(0.55f, 0.05f),
+            driftX = -0.16f, driftY = 0.14f,
             progress = drift2
         )
         AmbientBlob(
-            color = Color(0xFFD9CFFF), // 淡紫
-            diameter = 480f,
-            startOffset = Offset(0.05f, 0.55f),
-            driftX = 0.16f, driftY = -0.14f,
+            color = Color(0xFFFFFFFF), // 雪白（雪景背景）
+            diameter = 520f,
+            startOffset = Offset(0.02f, 0.55f),
+            driftX = 0.14f, driftY = -0.12f,
             progress = drift3
         )
         AmbientBlob(
-            color = Color(0xFFCDF2E4), // 薄荷
-            diameter = 500f,
-            startOffset = Offset(0.55f, 0.62f),
-            driftX = -0.2f, driftY = -0.1f,
+            color = Color(0xFFD4D2EF), // 雾紫（眼部与围巾暗部）
+            diameter = 540f,
+            startOffset = Offset(0.52f, 0.60f),
+            driftX = -0.18f, driftY = -0.10f,
             progress = drift4
+        )
+    }
+}
+
+/**
+ * 壁纸取景适配（深度适配比例）：
+ *
+ * 壁纸为 1024×1024 方图，人脸核心区在原图纵轴 35%~65%（眼睛 ≈48%）。
+ * 竖屏 Crop 铺满时上下共裁掉约一半，需要把取景焦点对准脸部：
+ *
+ *   · 竖屏（screenH/W > 1.05）：按宽度铺满，垂直焦点 = 原图 45%（微上移保住眼睛）
+ *   · 横屏/平板：按高度铺满，水平居中（人物在原图中央）
+ *   · 极端长屏（折叠屏 21:9+）：限制放大不超过 2.2 倍，超出部分用雪白补边
+ *     而不是继续放大裁掉人物
+ *
+ * 用 BoxWithConstraints 实测容器尺寸计算缩放与偏移，任何屏幕比例都不变形。
+ */
+@Composable
+private fun WallpaperFraming(modifier: Modifier = Modifier) {
+    BoxWithConstraints(modifier) {
+        val density = LocalDensity.current
+        val boxW = with(density) { maxWidth.toPx() }
+        val boxH = with(density) { maxHeight.toPx() }
+        val imgW = 1024f
+        val imgH = 1024f
+
+        val screenRatio = boxH / boxW
+        // 基础缩放：竖屏按宽铺满，横屏按高铺满
+        var scale = if (screenRatio > 1.05f) boxW / imgW else boxH / imgH
+        // 折叠屏/长屏护栏：放大倍率封顶（2.2 倍宽铺满），避免人物被过度裁切
+        val maxScale = boxH / imgH * 1.35f
+        if (screenRatio > 1.05f && scale > maxScale) scale = maxScale
+
+        // 缩放后的画布与屏幕差值 = 可裁切余量
+        val scaledW = imgW * scale
+        val scaledH = imgH * scale
+        val overflowX = (scaledW - boxW).coerceAtLeast(0f)
+        val overflowY = (scaledH - boxH).coerceAtLeast(0f)
+
+        // 焦点：脸部中心（原图 0.50, 0.45）对准屏幕中心
+        // 可用余量内移动：竖屏时把焦点上移，横屏时水平居中
+        val focusX = 0.50f
+        val focusY = 0.45f
+        val offsetX = -overflowX * focusX
+        val offsetY = -overflowY * focusY
+
+        Image(
+            bitmap = BitmapFactory.decodeResource(
+                LocalContext.current.resources, R.drawable.wallpaper_tomoyo
+            ).asImageBitmap(),
+            contentDescription = null,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
+                    translationX = offsetX
+                    translationY = offsetY
+                },
+            contentScale = ContentScale.Fit,
+            alignment = androidx.compose.ui.Alignment.TopStart
         )
     }
 }
@@ -1647,8 +1733,8 @@ fun GlassButton(
     // Glass    = 液态玻璃胶囊（官方 LiquidButton：vibrancy + blur(2dp) + lens(12,24)）
     // Danger   = 液态玻璃胶囊 + 红色调 tint（官方 tint + Hue 混合规格）
     val glassColors = GlassColors(
-        tintTop = Color(0xFFFAFAFA).copy(alpha = 0.44f),
-        tintBottom = Color(0xFFFAFAFA).copy(alpha = 0.30f),
+        tintTop = Color(0xFFF8FAFE).copy(alpha = 0.44f),
+        tintBottom = Color(0xFFF8FAFE).copy(alpha = 0.30f),
         highlight = Color.White.copy(alpha = 0.32f),
         rimBright = Color.White.copy(alpha = 0.6f),
         rimDim = IOSPalette.separator.copy(alpha = 0.5f)
@@ -1693,7 +1779,7 @@ fun GlassButton(
 
     val contentColor = when (style) {
         GlassButtonStyle.Primary -> Color.White
-        GlassButtonStyle.Glass -> Color(0xFF333333)
+        GlassButtonStyle.Glass -> IOSPalette.label
         GlassButtonStyle.Danger -> IOSPalette.destructive
     }
 
@@ -1768,8 +1854,8 @@ fun GlassIconButton(
             .glass(
                 CircleShape,
                 GlassColors(
-                    tintTop = Color(0xFFFAFAFA).copy(alpha = 0.44f),
-                    tintBottom = Color(0xFFFAFAFA).copy(alpha = 0.30f),
+                    tintTop = Color(0xFFF8FAFE).copy(alpha = 0.44f),
+                    tintBottom = Color(0xFFF8FAFE).copy(alpha = 0.30f),
                     highlight = Color.White.copy(alpha = 0.32f),
                     rimBright = Color.White.copy(alpha = 0.6f),
                     rimDim = IOSPalette.separator.copy(alpha = 0.5f)
@@ -2070,8 +2156,8 @@ fun GlassNavBar(
                 .glass(
                     pillShape,
                     GlassColors(
-                        tintTop = Color(0xFFFAFAFA).copy(alpha = 0.42f),
-                        tintBottom = Color(0xFFFAFAFA).copy(alpha = 0.30f),
+                        tintTop = Color(0xFFF8FAFE).copy(alpha = 0.42f),
+                        tintBottom = Color(0xFFF8FAFE).copy(alpha = 0.30f),
                         highlight = Color.White.copy(alpha = 0.35f),
                         rimBright = Color.White.copy(alpha = 0.65f),
                         rimDim = IOSPalette.separator.copy(alpha = 0.55f)
@@ -2278,8 +2364,8 @@ fun GlassNavBar(
                     .glass(
                         CircleShape,
                         GlassColors(
-                            tintTop = Color(0xFFFAFAFA).copy(alpha = 0.42f),
-                            tintBottom = Color(0xFFFAFAFA).copy(alpha = 0.30f),
+                            tintTop = Color(0xFFF8FAFE).copy(alpha = 0.42f),
+                            tintBottom = Color(0xFFF8FAFE).copy(alpha = 0.30f),
                             highlight = Color.White.copy(alpha = 0.35f),
                             rimBright = Color.White.copy(alpha = 0.65f),
                             rimDim = IOSPalette.separator.copy(alpha = 0.55f)
@@ -2333,7 +2419,7 @@ fun GlassFabButton(
 ) {
     val interaction = remember { MutableInteractionSource() }
     val iconColor by animateColorAsState(
-        targetValue = if (selected) Color(0xFFF3F5FA)
+        targetValue = if (selected) Color(0xFFF6F8FC)
         else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
         animationSpec = tween(240),
         label = "fabIconColor"
@@ -2390,7 +2476,7 @@ fun GlassFabButton(
             .pressRipple(
                 interaction,
                 clipShape = CircleShape,
-                color = if (selected) Color(0xFFD9DEEB) else Color.White,
+                color = if (selected) Color(0xFFBFD2F2) else Color.White,
                 intensity = 1.25f
             )
             .clickable(interactionSource = interaction, indication = null) {
