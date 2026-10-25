@@ -51,7 +51,7 @@ import androidx.compose.ui.unit.sp
 
 
 /**
- * 分组卡片：一张大圆角白卡，内部纵向排列 ListItem。
+ * 分组卡片：一张大圆角液态玻璃面板（iOS 26 Liquid Glass 规格），内部纵向排列 ListItem。
  * 项之间的 1px 分割线由 [InsetListItem] 自行绘制（自动跳过最后一项）。
  */
 @Composable
@@ -62,10 +62,26 @@ fun InsetGroup(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            // 卡片与其他 GlassCard 分区同宽（页级 20dp 边距），
-            // 行内容统一由 [InsetListItem]/行组件自带 16dp 内边距对齐
-            .clip(RoundedCornerShape(IOSPalette.cardRadius))
-            .background(IOSPalette.card),
+            // iOS 26 Liquid Glass 分组面板：vibrancy + blur + lens 折射
+            // + 40% 浅色表面（官方 containerColor 0.4f 规格）
+            .liquidGlass(
+                shape = RoundedCornerShape(IOSPalette.cardRadius),
+                blurRadius = 10.dp,
+                lensHeight = 14.dp,
+                lensAmount = 18.dp,
+                chromaticAberration = false
+            )
+            .glass(
+                RoundedCornerShape(IOSPalette.cardRadius),
+                GlassColors(
+                    tintTop = Color.White.copy(alpha = 0.40f),
+                    tintBottom = Color.White.copy(alpha = 0.28f),
+                    highlight = Color.White.copy(alpha = 0.30f),
+                    rimBright = Color.White.copy(alpha = 0.60f),
+                    rimDim = IOSPalette.separator.copy(alpha = 0.6f)
+                )
+            )
+            .clip(RoundedCornerShape(IOSPalette.cardRadius)),
         content = content
     )
 }
