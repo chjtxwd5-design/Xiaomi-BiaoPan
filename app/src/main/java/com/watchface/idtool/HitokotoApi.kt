@@ -4,6 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
+import com.watchface.idtool.util.TextUtil
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
@@ -123,13 +124,6 @@ object HitokotoApi {
         }
     }
 
-    /** 反转义常见 HTML 实体 */
-    private fun unescape(s: String): String = s
-        .replace("&amp;", "&")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", "\"")
-        .replace("&#39;", "'")
-        .replace("&apos;", "'")
-        .replace("&nbsp;", " ")
+    /** 反转义常见 HTML 实体（已合并到 util.TextUtil，此处保留别名以兼容既有调用） */
+    private fun unescape(s: String): String = TextUtil.unescapeHtmlEntities(s)
 }
