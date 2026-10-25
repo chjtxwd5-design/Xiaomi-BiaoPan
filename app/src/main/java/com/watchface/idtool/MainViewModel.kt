@@ -15,14 +15,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.BufferedReader
 import java.io.File
-import java.io.InputStreamReader
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.TimeUnit
 import com.watchface.idtool.ui.AppLocale
+import com.watchface.idtool.util.ProcessExec
 
 enum class PermissionStatus {
     ROOT,       // 已激活 Root 权限
@@ -120,8 +118,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** 下载状态统一分发 */
-    private fun onDownloadStateChanged(state: ApkDownloader.DownloadState) {
-        when (state) {
+    private fun onDownloadStateChanged(state: ApkDownloader.DownloadState) {        when (state) {
             is ApkDownloader.DownloadState.Idle -> {}
             is ApkDownloader.DownloadState.Downloading -> {
                 _uiState.value = _uiState.value.copy(
@@ -145,10 +142,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     isDownloading = false,
                     downloadProgress = 100
                 )
+                // 安全修复：安装前校验 APK 签名与当前应用一致，防中间人替换安装包
+                // （下载链可能经 HTTP CDN 重定向，network config 已对必要域名放行明文）
+                val appContext = getApplication<Application>()
+                val signatureOk = withContext(Dispatchers.IO) {
+                    verifyApkSignature(appContext, state.file)
+                }
+                if (!signatureOk) {
+                    state.file.delete()
+                    _uiState.value = _uiState.value.copy(
+                        showDownloadProgress = false,
+                        downloadError = "更新包签名校验失败，已取消安装（可能被篡改，请从官方 Release 页面下载）",
+                        toastMessage = "更新包签名校验失败"
+                    )
+                    return
+                }
                 // 自动调起安装
-                val intent = ApkDownloader.installApk(getApplication(), state.file)
+                val intent = ApkDownloader.installApk(appContext, state.file)
                 if (intent != null) {
-                    getApplication<Application>().startActivity(intent)
+                    appContext.startActivity(intent)
                 }
                 viewModelScope.launch {
                     kotlinx.coroutines.delay(500)
@@ -168,15 +180,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     // ==================== 权限检测 ====================
 
     fun checkPermissionStatus() {
-        lastPermissionCheckAt = System.currentTimeMillis()
+        // 快照比较修复竞态：记录本次检测的开始标记，
+        // 写回结果时仅当标记未被更新的检测刷新时才生效（旧结果不再覆盖新结果）
+        val startedAt = System.currentTimeMillis()
+        lastPermissionCheckAt = startedAt
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(permissionStatus = PermissionStatus.CHECKING)
             val status = withContext(Dispatchers.IO) {
                 detectPermission()
             }
             cachedPermission = status
-            // 仅当仍是本次检测结果最新时才更新（避免旧结果覆盖新结果）
-            if (System.currentTimeMillis() - lastPermissionCheckAt < 15_000L) {
+            if (startedAt == lastPermissionCheckAt) {
                 _uiState.value = _uiState.value.copy(permissionStatus = status)
             }
         }
@@ -192,15 +206,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** 实际权限探测（IO 线程执行） */
     private fun detectPermission(): PermissionStatus {
-        // 1. 检测 Root
+        // 1. 检测 Root（ProcessExec 并发消费 stderr，防死锁）
         val hasRoot = try {
-            val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "id"))
-            val output = BufferedReader(InputStreamReader(process.inputStream)).use { it.readText() }
-            process.errorStream.use { it.readBytes() }
-            process.waitFor(5, TimeUnit.SECONDS)
-            val result = output.contains("uid=0")
-            process.destroy()
-            result
+            val result = ProcessExec.capture(
+                Runtime.getRuntime().exec(arrayOf("su", "-c", "id")), 5L
+            )
+            result.success && String(result.stdout).contains("uid=0")
         } catch (_: Exception) {
             false
         }
@@ -460,6 +471,38 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         ApkDownloader.reset()
     }
 
+    /**
+     * 校验下载的 APK 签名是否与当前应用一致（防下载链路被中间人替换安装包）。
+     * 比较双方 APK 签名证书的字节内容；任何一步失败都按不一致处理。
+     */
+    private fun verifyApkSignature(context: android.content.Context, apk: File): Boolean {
+        return try {
+            val pm = context.packageManager
+            val selfSignatures = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                pm.getPackageInfo(context.packageName, android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES)
+                    .signingInfo?.apkContentsSigners
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getPackageInfo(context.packageName, android.content.pm.PackageManager.GET_SIGNATURES).signatures
+            }
+            val apkSignatures = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                pm.getPackageArchiveInfo(apk.absolutePath, android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES)
+                    ?.signingInfo?.apkContentsSigners
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getPackageArchiveInfo(apk.absolutePath, android.content.pm.PackageManager.GET_SIGNATURES)?.signatures
+            }
+            val self = selfSignatures ?: return false
+            val other = apkSignatures ?: return false
+            if (other.isEmpty()) return false
+            // APK 可能多签名：要求存在一个与当前应用一致的证书
+            val selfSet = self.map { it.toByteArray().toList() }.toSet()
+            other.any { it.toByteArray().toList() in selfSet }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     // ==================== 日志密钥提取 ====================
 
     fun setExtractZipPath(path: String) {
@@ -524,38 +567,38 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // ==================== 命令执行辅助 ====================
 
+    /**
+     * 统一的进程输出捕获（P0 修复：防管道死锁）。
+     * 旧写法先读完 stdout 再读 stderr，stderr 写满管道缓冲即双向死锁。
+     * 现统一走 util.ProcessExec：stderr 独立线程并发消费 + 带超时 waitFor。
+     */
+    private fun execCapture(cmd: Array<String>, timeoutSeconds: Long): ProcessExec.ExecResult {
+        return try {
+            ProcessExec.capture(Runtime.getRuntime().exec(cmd), timeoutSeconds)
+        } catch (_: Exception) {
+            ProcessExec.ExecResult(ByteArray(0), "", false)
+        }
+    }
+
     /** 通过当前可用权限读取文件全部内容 */
     private fun readFileWithPrivilege(path: String): ByteArray {
-        // 优先 Shizuku
+        // 优先 Shizuku（参数数组直传，不经 shell，防命令注入）
         try {
             if (cachedPermission == PermissionStatus.SHELL && ShizukuExecutor.hasPermission()) {
                 val bytes = ShizukuExecutor.readFile(path)
                 if (bytes.isNotEmpty()) return bytes
             }
         } catch (_: Exception) { }
-        // Root
+        // Root（cat 参数数组直传 + su -c 单引号转义，防命令注入）
         if (cachedPermission == PermissionStatus.ROOT) {
-            try {
-                val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "cat \"$path\""))
-                val bytes = process.inputStream.use { it.readBytes() }
-                // 消费错误流防止阻塞
-                process.errorStream.use { it.readBytes() }
-                process.waitFor(15, TimeUnit.SECONDS)
-                process.destroy()
-                if (bytes.isNotEmpty()) return bytes
-            } catch (_: Exception) { }
+            val result = execCapture(arrayOf("su", "-c", "cat ${ProcessExec.shellQuote(path)}"), 15L)
+            if (result.success && result.stdout.isNotEmpty()) return result.stdout
         }
-        // Shell（应用自身 uid）
-        try {
-            val process = Runtime.getRuntime().exec(arrayOf("/system/bin/sh", "-c", "cat \"$path\""))
-            val bytes = process.inputStream.use { it.readBytes() }
-            process.errorStream.use { it.readBytes() }
-            process.waitFor(15, TimeUnit.SECONDS)
-            process.destroy()
-            if (bytes.isNotEmpty()) return bytes
-        } catch (_: Exception) { }
+        // Shell（应用自身 uid，cat 参数数组直传，无 shell 解析）
+        val shellResult = execCapture(arrayOf("/system/bin/cat", path), 15L)
+        if (shellResult.success && shellResult.stdout.isNotEmpty()) return shellResult.stdout
         // File API 兜底
-        return File(path).readBytes()
+        return try { File(path).readBytes() } catch (_: Exception) { ByteArray(0) }
     }
 
     /** 只读取文件头部指定字节数，大幅减少 IO */
@@ -567,43 +610,35 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 if (bytes.isNotEmpty()) return bytes
             }
         } catch (_: Exception) { }
-        // Root
+        // Root（dd 参数数组直传 + 单引号转义）
         if (cachedPermission == PermissionStatus.ROOT) {
-            try {
-                val process = Runtime.getRuntime().exec(
-                    arrayOf("su", "-c", "dd if=\"$path\" bs=$byteCount count=1 2>/dev/null")
-                )
-                val bytes = process.inputStream.use { it.readBytes() }
-                process.errorStream.use { it.readBytes() }
-                process.waitFor(10, TimeUnit.SECONDS)
-                process.destroy()
-                if (bytes.isNotEmpty()) return bytes
-            } catch (_: Exception) { }
-        }
-        // Shell
-        try {
-            val process = Runtime.getRuntime().exec(
-                arrayOf("/system/bin/sh", "-c", "dd if=\"$path\" bs=$byteCount count=1 2>/dev/null")
+            val result = execCapture(
+                arrayOf("su", "-c", "dd if=${ProcessExec.shellQuote(path)} bs=$byteCount count=1 2>/dev/null"),
+                10L
             )
-            val bytes = process.inputStream.use { it.readBytes() }
-            process.errorStream.use { it.readBytes() }
-            process.waitFor(10, TimeUnit.SECONDS)
-            process.destroy()
-            if (bytes.isNotEmpty()) return bytes
-        } catch (_: Exception) { }
+            if (result.success && result.stdout.isNotEmpty()) return result.stdout
+        }
+        // Shell（dd 参数数组直传，无 shell 解析）
+        val shellResult = execCapture(
+            arrayOf("/system/bin/dd", "if=$path", "bs=$byteCount", "count=1"),
+            10L
+        )
+        if (shellResult.success && shellResult.stdout.isNotEmpty()) return shellResult.stdout
         // File API 兜底
         val file = File(path)
         if (file.exists()) {
-            return file.inputStream().use { stream ->
-                val buffer = ByteArray(minOf(byteCount, file.length().toInt()))
-                var read = 0
-                while (read < buffer.size) {
-                    val n = stream.read(buffer, read, buffer.size - read)
-                    if (n == -1) break
-                    read += n
+            return try {
+                file.inputStream().use { stream ->
+                    val buffer = ByteArray(minOf(byteCount, file.length().toInt()))
+                    var read = 0
+                    while (read < buffer.size) {
+                        val n = stream.read(buffer, read, buffer.size - read)
+                        if (n == -1) break
+                        read += n
+                    }
+                    if (read < buffer.size) buffer.copyOf(read) else buffer
                 }
-                if (read < buffer.size) buffer.copyOf(read) else buffer
-            }
+            } catch (_: Exception) { ByteArray(0) }
         }
         return ByteArray(0)
     }
@@ -799,13 +834,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
      */
     private fun findBinFilesViaAppShell(dirPath: String): List<String> {
         return try {
-            val cmd = "find \"$dirPath\" -type f -name \"*.bin\" -exec stat -c '%n|%s|%Y' {} \\; 2>/dev/null"
-            val process = Runtime.getRuntime().exec(arrayOf("/system/bin/sh", "-c", cmd))
-            val output = BufferedReader(InputStreamReader(process.inputStream)).use { it.readText() }
-            process.errorStream.use { it.readBytes() }
-            process.waitFor(15, TimeUnit.SECONDS)
-            process.destroy()
-            output.lines().filter { it.isNotBlank() && it.contains("|") }
+            val cmd = "find ${ProcessExec.shellQuote(dirPath)} -type f -name \"*.bin\" -exec stat -c '%n|%s|%Y' {} \\; 2>/dev/null"
+            val result = ProcessExec.capture(
+                Runtime.getRuntime().exec(arrayOf("/system/bin/sh", "-c", cmd)), 15L
+            )
+            if (result.success) String(result.stdout).lines().filter { it.isNotBlank() && it.contains("|") }
+            else emptyList()
         } catch (_: Exception) {
             emptyList()
         }
@@ -832,30 +866,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         return result
     }
 
-    /** 通过 Root 执行命令，确保进程清理 */
+    /** 通过 Root 执行命令，确保进程清理（stderr 并发消费防死锁） */
     private fun execRootCommand(cmd: String): List<String> {
         return try {
-            val process = Runtime.getRuntime().exec(arrayOf("su", "-c", cmd))
-            val output = BufferedReader(InputStreamReader(process.inputStream)).use { it.readText() }
-            // 同时消费错误流，防止进程阻塞
-            process.errorStream.use { it.readBytes() }
-            process.waitFor(15, TimeUnit.SECONDS)
-            process.destroy()
-            output.lines().filter { it.isNotBlank() && it.contains("|") }
+            val result = ProcessExec.capture(Runtime.getRuntime().exec(arrayOf("su", "-c", cmd)), 15L)
+            if (result.success) String(result.stdout).lines().filter { it.isNotBlank() && it.contains("|") }
+            else emptyList()
         } catch (_: Exception) {
             emptyList()
         }
     }
 
-    /** 通过 Shell 执行命令，确保进程清理 */
+    /** 通过 Shell 执行命令，确保进程清理（stderr 并发消费防死锁） */
     private fun execShellCommand(cmd: String): List<String> {
         return try {
-            val process = Runtime.getRuntime().exec(arrayOf("/system/bin/sh", "-c", cmd))
-            val output = BufferedReader(InputStreamReader(process.inputStream)).use { it.readText() }
-            process.errorStream.use { it.readBytes() }
-            process.waitFor(15, TimeUnit.SECONDS)
-            process.destroy()
-            output.lines().filter { it.isNotBlank() && it.contains("|") }
+            val result = ProcessExec.capture(Runtime.getRuntime().exec(arrayOf("/system/bin/sh", "-c", cmd)), 15L)
+            if (result.success) String(result.stdout).lines().filter { it.isNotBlank() && it.contains("|") }
+            else emptyList()
         } catch (_: Exception) {
             emptyList()
         }
@@ -992,7 +1019,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun buildFileName(name: String, id: String): String {
-        val safeName = name.ifEmpty { "watchface" }
+        // 修复：过滤文件系统非法字符（表盘名来自二进制头部，可能含 / \ : 等导致保存失败或写入意外子目录）
+        val safeName = name.ifEmpty { "watchface" }.replace(Regex("[\\\\/:*?\"<>|\\x00]"), "_").trim()
         return "$safeName-$id.bin"
     }
 
@@ -1063,8 +1091,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     // ==================== 记录管理 ====================
 
     fun loadRecords() {
-        val records = RecordStore.getRecords(getApplication())
-        _uiState.value = _uiState.value.copy(records = records)
+        // 性能修复：SP 读取 + JSON 全量解析移入 IO 线程（此前在主线程反复执行）
+        viewModelScope.launch {
+            val records = withContext(Dispatchers.IO) {
+                RecordStore.getRecords(getApplication())
+            }
+            _uiState.value = _uiState.value.copy(records = records)
+        }
     }
 
     fun deleteRecord(index: Int, deleteFile: Boolean) {
