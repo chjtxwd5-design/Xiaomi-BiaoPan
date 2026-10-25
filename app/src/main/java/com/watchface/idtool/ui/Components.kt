@@ -134,6 +134,7 @@ import com.kyant.backdrop.highlight.HighlightStyle
 import com.kyant.backdrop.shadow.InnerShadow
 import com.kyant.backdrop.shadow.Shadow
 import com.kyant.shapes.Capsule
+import com.watchface.idtool.R
 import com.watchface.idtool.AppSettings
 import com.watchface.idtool.BgMode
 import java.io.File
