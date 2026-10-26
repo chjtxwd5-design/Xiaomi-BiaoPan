@@ -1123,18 +1123,21 @@ private fun HarnessWallpaperBackground(modifier: Modifier = Modifier) {
 
                     surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
                         override fun onSurfaceTextureAvailable(st: android.graphics.SurfaceTexture, w: Int, h: Int) {
+                            android.util.Log.i("Wallpaper", "surface available ${w}x$h")
                             try {
-                                // 缓存校验：用「版本标记文件」而非 openFd
-                                // （openFd 对经过压缩的 assets 会抛异常，导致整个 try 失败、
-                                //   视频压根不播，只剩静态帧 —— 这是之前显示不对的隐藏 bug）
-                                val tagFile = java.io.File(ctx.filesDir, "wallpaper_v5.tag")
+                                // 防呆1：每次构建带唯一版本号，确保视频必然替换
+                                // （此前的 openFd 校验对压缩 assets 抛异常，导致视频不播只剩静态帧）
+                                val verKey = "wp_v6_1560"
+                                val tagFile = java.io.File(ctx.filesDir, "wallpaper.tag")
                                 val file = java.io.File(ctx.filesDir, "wallpaper_live.mp4")
-                                if (!tagFile.exists() || !file.exists() || file.length() == 0L) {
+                                val tagOk = tagFile.exists() && tagFile.readText() == verKey
+                                if (!tagOk || !file.exists() || file.length() < 100_000L) {
                                     file.delete()
                                     ctx.assets.open("wallpaper_live.mp4").use { input ->
                                         file.outputStream().use { output -> input.copyTo(output) }
                                     }
-                                    tagFile.writeText("v5")
+                                    tagFile.writeText(verKey)
+                                    android.util.Log.i("Wallpaper", "cache refreshed: ${file.length()} bytes")
                                 }
                                 val mp = android.media.MediaPlayer()
                                 mediaPlayer = mp
@@ -1153,17 +1156,21 @@ private fun HarnessWallpaperBackground(modifier: Modifier = Modifier) {
                                 mp.setOnVideoSizeChangedListener { _, vw, vh ->
                                     applyCoverMatrix(vw, vh)
                                 }
-                                mp.setOnPreparedListener {
+                                mp.setOnPreparedListener { p ->
                                     videoReady = true
-                                    applyCoverMatrix(it.videoWidth, it.videoHeight)
-                                    it.start()
+                                    // 防呆2：视频就绪后立刻按实际尺寸铺满（不依赖 sizeChanged 回调）
+                                    applyCoverMatrix(p.videoWidth, p.videoHeight)
+                                    p.start()
+                                    android.util.Log.i("Wallpaper", "video playing ${p.videoWidth}x${p.videoHeight}")
                                 }
-                                mp.setOnErrorListener { _, _, _ ->
+                                mp.setOnErrorListener { _, what, extra ->
+                                    android.util.Log.e("Wallpaper", "video error what=$what extra=$extra")
                                     videoReady = false
                                     true
                                 }
                                 mp.prepareAsync()
-                            } catch (_: Exception) {
+                            } catch (e: Exception) {
+                                android.util.Log.e("Wallpaper", "video init failed: ${e.message}")
                                 videoReady = false
                             }
                         }
