@@ -1098,36 +1098,49 @@ private fun HarnessWallpaperBackground(modifier: Modifier = Modifier) {
 
     var videoReady by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val screenDp = LocalConfiguration.current
+    val screenW = screenDp.screenWidthDp.toFloat()
+    val screenH = screenDp.screenHeightDp.toFloat()
+    // 视频原生比例
+    val videoAspect = 720f / 1560f
+    // 视口（含系统栏的全屏区域，这里用 Context 尺寸兜底）
+    val isPortrait = screenH > screenW
+    // 竖屏：视频比例≈屏幕比例，直接铺满；横屏：按高度算宽度（contain，居中，两侧由静态图兜底）
+    val (videoW, videoH) = if (isPortrait) {
+        val w = screenW
+        val h = w / videoAspect
+        if (h < screenH) screenH * videoAspect to screenH else w to h
+    } else {
+        (screenH * videoAspect) to screenH
+    }
 
     Box(modifier.fillMaxSize()) {
-        // ---- 主层：动态壁纸视频（TextureView + Matrix Cover，循环无音轨） ----
+        // ---- 底层：静态帧 Cover 铺满（作为视频未就绪/横屏两侧的底，绝不露黑） ----
+        Image(
+            bitmap = BitmapFactory.decodeResource(
+                context.resources, R.drawable.wallpaper_tomoyo
+            ).asImageBitmap(),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
+
+        // ---- 主层：动态壁纸视频（SurfaceView，精确尺寸保持视频比例，零双重缩放） ----
+        // 说明：此前用 TextureView + setTransform 矩阵，但 TextureView 默认已把画面
+        // 拉伸铺满自身，再叠加 scale 矩阵等于放大两次 → 竖屏脸被过度放大、横屏糊成斜纹。
+        // 现改为「按视频原生比例计算 SurfaceView 精确尺寸」：
+        //   · 竖屏（屏比例 ≈ 视频比例 1:2.167）：视频正好铺满，零裁切零缩放
+        //   · 横屏：按高度铺满完整显示，两侧由底层静态图承接，不放大不糊
         AndroidView(
             factory = { ctx ->
-                android.view.TextureView(ctx).apply {
-                    var mediaPlayer: android.media.MediaPlayer? = null
+                android.view.SurfaceView(ctx).apply {
+                    holder.addCallback(object : android.view.SurfaceHolder.Callback {
+                        private var mediaPlayer: android.media.MediaPlayer? = null
 
-                    fun applyCoverMatrix(vw: Int, vh: Int) {
-                        post {
-                            val tw = width.toFloat()
-                            val th = height.toFloat()
-                            if (vw <= 0 || vh <= 0 || tw <= 0f || th <= 0f) return@post
-                            // Cover：等比放大到完全覆盖，居中裁掉溢出
-                            val sx = tw / vw
-                            val sy = th / vh
-                            val s = maxOf(sx, sy)
-                            val matrix = android.graphics.Matrix()
-                            matrix.setScale(s, s, tw / 2f, th / 2f)
-                            setTransform(matrix)
-                        }
-                    }
-
-                    surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
-                        override fun onSurfaceTextureAvailable(st: android.graphics.SurfaceTexture, w: Int, h: Int) {
-                            android.util.Log.i("Wallpaper", "surface available ${w}x$h")
+                        override fun surfaceCreated(holder: android.view.SurfaceHolder) {
                             try {
-                                // 防呆1：每次构建带唯一版本号，确保视频必然替换
-                                // （此前的 openFd 校验对压缩 assets 抛异常，导致视频不播只剩静态帧）
-                                val verKey = "wp_v6_1560"
+                                // 版本标记强制刷新缓存（旧视频不会残留）
+                                val verKey = "wp_v7_surface"
                                 val tagFile = java.io.File(ctx.filesDir, "wallpaper.tag")
                                 val file = java.io.File(ctx.filesDir, "wallpaper_live.mp4")
                                 val tagOk = tagFile.exists() && tagFile.readText() == verKey
@@ -1137,15 +1150,14 @@ private fun HarnessWallpaperBackground(modifier: Modifier = Modifier) {
                                         file.outputStream().use { output -> input.copyTo(output) }
                                     }
                                     tagFile.writeText(verKey)
-                                    android.util.Log.i("Wallpaper", "cache refreshed: ${file.length()} bytes")
+                                    android.util.Log.i("Wallpaper", "cache refreshed ${file.length()}b")
                                 }
                                 val mp = android.media.MediaPlayer()
                                 mediaPlayer = mp
-                                mp.setSurface(android.view.Surface(st))
+                                mp.setDisplay(holder)
                                 mp.setDataSource(file.absolutePath)
                                 mp.isLooping = true
-                                // 音频属性声明为系统提示音 + 静音：
-                                // MIUI 等 ROM 检测到"应用播视频"会暂停后台音乐，绕开该检测
+                                // 声明为系统提示音 + 静音：不打断后台音乐
                                 mp.setAudioAttributes(
                                     android.media.AudioAttributes.Builder()
                                         .setUsage(android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
@@ -1153,62 +1165,45 @@ private fun HarnessWallpaperBackground(modifier: Modifier = Modifier) {
                                         .build()
                                 )
                                 mp.setVolume(0f, 0f)
-                                mp.setOnVideoSizeChangedListener { _, vw, vh ->
-                                    applyCoverMatrix(vw, vh)
-                                }
                                 mp.setOnPreparedListener { p ->
                                     videoReady = true
-                                    // 防呆2：视频就绪后立刻按实际尺寸铺满（不依赖 sizeChanged 回调）
-                                    applyCoverMatrix(p.videoWidth, p.videoHeight)
                                     p.start()
-                                    android.util.Log.i("Wallpaper", "video playing ${p.videoWidth}x${p.videoHeight}")
+                                    android.util.Log.i("Wallpaper", "playing ${p.videoWidth}x${p.videoHeight}")
                                 }
                                 mp.setOnErrorListener { _, what, extra ->
-                                    android.util.Log.e("Wallpaper", "video error what=$what extra=$extra")
+                                    android.util.Log.e("Wallpaper", "error $what/$extra")
                                     videoReady = false
                                     true
                                 }
                                 mp.prepareAsync()
                             } catch (e: Exception) {
-                                android.util.Log.e("Wallpaper", "video init failed: ${e.message}")
+                                android.util.Log.e("Wallpaper", "init fail ${e.message}")
                                 videoReady = false
                             }
                         }
 
-                        override fun onSurfaceTextureSizeChanged(st: android.graphics.SurfaceTexture, w: Int, h: Int) {
-                            mediaPlayer?.let { applyCoverMatrix(it.videoWidth, it.videoHeight) }
-                        }
+                        override fun surfaceChanged(h: android.view.SurfaceHolder, f: Int, w: Int, hh: Int) = Unit
 
-                        override fun onSurfaceTextureDestroyed(st: android.graphics.SurfaceTexture): Boolean {
+                        override fun surfaceDestroyed(holder: android.view.SurfaceHolder) {
                             mediaPlayer?.run {
                                 try {
-                                    stop()
-                                    release()
+                                    stop(); release()
                                 } catch (_: Exception) { }
                             }
                             mediaPlayer = null
-                            return true
                         }
-
-                        override fun onSurfaceTextureUpdated(st: android.graphics.SurfaceTexture) = Unit
-                    }
+                    })
                 }
             },
             update = { },
-            modifier = Modifier.fillMaxSize()
+            // 精确尺寸：保持视频原生比例，居中铺满（竖屏几乎满屏，横屏两侧露静态图底）
+            modifier = Modifier
+                .align(androidx.compose.ui.Alignment.Center)
+                .size(
+                    width = videoW.dp,
+                    height = videoH.dp
+                )
         )
-
-        // ---- 回退层：静态帧（视频未就绪时显示，避免黑屏闪烁） ----
-        if (!videoReady) {
-            Image(
-                bitmap = BitmapFactory.decodeResource(
-                    context.resources, R.drawable.wallpaper_tomoyo
-                ).asImageBitmap(),
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop  // 静态帧同样 Cover 自适应
-            )
-        }
 
         // ---- scrim：上下渐深（状态栏/导航栏可读），人物区通透 ----
         Box(
