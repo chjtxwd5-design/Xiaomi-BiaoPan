@@ -1124,14 +1124,17 @@ private fun HarnessWallpaperBackground(modifier: Modifier = Modifier) {
                     surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
                         override fun onSurfaceTextureAvailable(st: android.graphics.SurfaceTexture, w: Int, h: Int) {
                             try {
-                                // 缓存校验：与 assets 视频大小不一致即替换
-                                // （修复版本升级后一直播旧缓存视频的问题）
-                                val expectedSize = ctx.assets.openFd("wallpaper_live.mp4").length
+                                // 缓存校验：用「版本标记文件」而非 openFd
+                                // （openFd 对经过压缩的 assets 会抛异常，导致整个 try 失败、
+                                //   视频压根不播，只剩静态帧 —— 这是之前显示不对的隐藏 bug）
+                                val tagFile = java.io.File(ctx.filesDir, "wallpaper_v5.tag")
                                 val file = java.io.File(ctx.filesDir, "wallpaper_live.mp4")
-                                if (!file.exists() || file.length() != expectedSize) {
+                                if (!tagFile.exists() || !file.exists() || file.length() == 0L) {
+                                    file.delete()
                                     ctx.assets.open("wallpaper_live.mp4").use { input ->
                                         file.outputStream().use { output -> input.copyTo(output) }
                                     }
+                                    tagFile.writeText("v5")
                                 }
                                 val mp = android.media.MediaPlayer()
                                 mediaPlayer = mp
