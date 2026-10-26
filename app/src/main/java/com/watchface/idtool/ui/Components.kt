@@ -1101,24 +1101,31 @@ private fun HarnessWallpaperBackground(modifier: Modifier = Modifier) {
     val screenDp = LocalConfiguration.current
     val screenW = screenDp.screenWidthDp.toFloat()
     val screenH = screenDp.screenHeightDp.toFloat()
-    // 视频原生比例
-    val videoAspect = 720f / 1560f
-    // 视口（含系统栏的全屏区域，这里用 Context 尺寸兜底）
     val isPortrait = screenH > screenW
-    // 竖屏：视频比例≈屏幕比例，直接铺满；横屏：按高度算宽度（contain，居中，两侧由静态图兜底）
+
+    // ---- 双素材自适应：按屏幕方向选择视频与静态帧 ----
+    //   竖屏（手机）：竖版 720×1560（人物横躺构图，比例≈手机屏 1:2.167，铺满零裁切）
+    //   横屏（平板/横屏手机）：横版 1280×650（原画面完整构图，比例≈平板横屏）
+    val videoAsset = if (isPortrait) "wallpaper_live.mp4" else "wallpaper_land.mp4"
+    val stillRes = if (isPortrait) R.drawable.wallpaper_tomoyo else R.drawable.wallpaper_land
+    val videoAspect = if (isPortrait) 720f / 1560f else 1280f / 650f
+
+    // 计算精确尺寸：正好铺满对应方向（比例接近，几乎零裁切）
     val (videoW, videoH) = if (isPortrait) {
         val w = screenW
         val h = w / videoAspect
         if (h < screenH) screenH * videoAspect to screenH else w to h
     } else {
-        (screenH * videoAspect) to screenH
+        val h = screenH
+        val w = h * videoAspect
+        if (w < screenW) screenW to screenW / videoAspect else w to h
     }
 
     Box(modifier.fillMaxSize()) {
-        // ---- 底层：静态帧 Cover 铺满（作为视频未就绪/横屏两侧的底，绝不露黑） ----
+        // ---- 底层：静态帧 Cover 铺满（视频未就绪时兜底，绝不露黑） ----
         Image(
             bitmap = BitmapFactory.decodeResource(
-                context.resources, R.drawable.wallpaper_tomoyo
+                context.resources, stillRes
             ).asImageBitmap(),
             contentDescription = null,
             modifier = Modifier.fillMaxSize(),
@@ -1128,9 +1135,8 @@ private fun HarnessWallpaperBackground(modifier: Modifier = Modifier) {
         // ---- 主层：动态壁纸视频（SurfaceView，精确尺寸保持视频比例，零双重缩放） ----
         // 说明：此前用 TextureView + setTransform 矩阵，但 TextureView 默认已把画面
         // 拉伸铺满自身，再叠加 scale 矩阵等于放大两次 → 竖屏脸被过度放大、横屏糊成斜纹。
-        // 现改为「按视频原生比例计算 SurfaceView 精确尺寸」：
-        //   · 竖屏（屏比例 ≈ 视频比例 1:2.167）：视频正好铺满，零裁切零缩放
-        //   · 横屏：按高度铺满完整显示，两侧由底层静态图承接，不放大不糊
+        // 现改为「SurfaceView + 按素材原生比例计算精确尺寸」：
+        //   竖屏用竖版素材正好铺满；横屏/平板用横版素材正好铺满，两个方向都零裁切。
         AndroidView(
             factory = { ctx ->
                 android.view.SurfaceView(ctx).apply {
@@ -1139,18 +1145,18 @@ private fun HarnessWallpaperBackground(modifier: Modifier = Modifier) {
 
                         override fun surfaceCreated(holder: android.view.SurfaceHolder) {
                             try {
-                                // 版本标记强制刷新缓存（旧视频不会残留）
-                                val verKey = "wp_v7_surface"
+                                // 版本标记强制刷新缓存（含方向，方向变化时重新拷贝）
+                                val verKey = "wp_v8_${videoAsset}"
                                 val tagFile = java.io.File(ctx.filesDir, "wallpaper.tag")
-                                val file = java.io.File(ctx.filesDir, "wallpaper_live.mp4")
+                                val file = java.io.File(ctx.filesDir, "wallpaper_$videoAsset")
                                 val tagOk = tagFile.exists() && tagFile.readText() == verKey
                                 if (!tagOk || !file.exists() || file.length() < 100_000L) {
                                     file.delete()
-                                    ctx.assets.open("wallpaper_live.mp4").use { input ->
+                                    ctx.assets.open(videoAsset).use { input ->
                                         file.outputStream().use { output -> input.copyTo(output) }
                                     }
                                     tagFile.writeText(verKey)
-                                    android.util.Log.i("Wallpaper", "cache refreshed ${file.length()}b")
+                                    android.util.Log.i("Wallpaper", "cache refreshed $verKey ${file.length()}b")
                                 }
                                 val mp = android.media.MediaPlayer()
                                 mediaPlayer = mp
