@@ -89,6 +89,13 @@ android {
         }
     }
 
+    // 关键：assets 里的视频必须不压缩
+    // PetSprite / 壁纸背景用 assets.openFd() 做零拷贝播放，
+    // 若被 AGP 压缩打进 APK，openFd 会抛 FileNotFoundException（"This file can not be opened as a file descriptor"）。
+    androidResources {
+        noCompress += listOf("mp4", "webm")
+    }
+
     lint {
         abortOnError = false
         checkReleaseBuilds = false
