@@ -263,7 +263,14 @@ private fun AppContent() {
                 }
             }
 
-            // L2 底部导航栏（iOS：3 标签垂直胶囊 + 右侧圆形设置按钮）
+            // L2 桌宠图层（悬浮在内容之上、导航栏之下）
+            // 宠物只在 App 窗口内活动（Android 版不越界到其他应用）
+            com.watchface.idtool.pet.PetOverlay(
+                modifier = Modifier.fillMaxSize(),
+                enabled = true,
+            )
+
+            // L3 底部导航栏（iOS：3 标签垂直胶囊 + 右侧圆形设置按钮）
             GlassNavBar(
                 tabs = listOf(
                     GlassNavTab(Icons.Default.Home, "主页"),
