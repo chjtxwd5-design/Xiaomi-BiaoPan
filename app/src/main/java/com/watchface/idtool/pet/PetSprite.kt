@@ -130,7 +130,7 @@ fun PetSprite(
                     )
                 }
         ) {
-            PetVideo(animFile = state.currentAnim.file, modifier = Modifier.fillMaxSize())
+            PetVideo(animFile = state.currentAnim.key, modifier = Modifier.fillMaxSize())
         }
 
         // 对话气泡
