@@ -95,9 +95,12 @@ object PetPhysics {
         val atRest: Boolean,
     )
 
+    /** 角色区域宽高比（对齐 dsh-pet 视频里角色的包围盒 240×285） */
+    const val ROLE_ASPECT = 240f / 285f
+
     /** 由 W/H/size 计算抛掷边界：身体（盒内缩 sideAllow）贴屏幕边缘才反弹 */
     fun throwBounds(W: Float, H: Float, size: Float, sideAllow: Float): ThrowBounds {
-        val h = size * 9f / 16f
+        val h = size / ROLE_ASPECT
         return ThrowBounds(
             minX = -sideAllow, minY = 0f,
             maxX = W - size + sideAllow, maxY = H - h,
