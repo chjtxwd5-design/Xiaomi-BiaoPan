@@ -107,21 +107,21 @@ object PetAnimations {
 
     // ==================== 分类池（供状态机使用） ====================
 
-    /** 待机动画（缺省时用第一个 action 兜底） */
+    /** 待机动画（idle-breathe 必须排在 idle 池第一条） */
     fun idleAnim(): Anim =
         of("idle").firstOrNull() ?: allAnims.firstOrNull() ?: FALLBACK_IDLE
 
     /** 转向动画 */
     fun turnAnim(): Anim =
-        of("turn").firstOrNull() ?: of("move").firstOrNull() ?: idleAnim()
-
-    /** 拖拽悬空动画 */
-    fun dragAnim(): Anim =
         of("turn").firstOrNull() ?: idleAnim()
 
-    /** 点击回应池 */
+    /** 拖拽悬空动画（drag 分类：被无形抓起悬空） */
+    fun dragAnim(): Anim =
+        of("drag").firstOrNull() ?: idleAnim()
+
+    /** 点击回应池（转码产物把 5 个 click-* 放在 idle 分类里，按 key 前缀识别） */
     fun clickAnims(): List<Anim> =
-        of("idle").filter { it.name.contains("点击回应") || it.key.startsWith("click") }
+        allAnims.filter { it.key.startsWith("click-") || it.name.contains("点击回应") }
             .ifEmpty { of("action").take(5) }
             .ifEmpty { listOf(idleAnim()) }
 
