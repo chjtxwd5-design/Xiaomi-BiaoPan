@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "generatedAt": "2026-10-27T01:32:50+0800",
+  "generatedAt": "2026-10-27T01:34:14+0800",
   "description": "dsh-pet animations for Android, loaded at runtime by PetAnimations.kt from assets/pet/animations.json. Each entry's 'key' resolves to assets/pet/<key>.mp4 via AssetManager.openFd. Videos keep a pure black background; render with Compose BlendMode.Screen to composite transparently over the UI.",
   "format": {
     "container": "mp4",
@@ -257,7 +257,7 @@
       "key": "mouse-drag-floating",
       "name": "被鼠标拖拽悬空反馈",
       "displayName": "被鼠标拖拽悬空反馈",
-      "category": "turn",
+      "category": "drag",
       "durationMs": 10040,
       "fileSizeBytes": 255926,
       "file": "mouse-drag-floating.mp4",
