@@ -29,7 +29,6 @@ class PetGLView(
     private val renderer = GLRenderer(context)
 
     init {
-        setEGLContextFactory(renderer.contextFactory)
         setRenderer(renderer)
         renderMode = RENDERMODE_CONTINUOUSLY
     }
@@ -95,8 +94,6 @@ class PetGLView(
         private var aPosition = -1
         private var aTexCoord = -1
         private var uTexture = -1
-
-        val contextFactory = object : EGLContextFactoryCompat()
 
         override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
             GLES20.glClearColor(0f, 0f, 0f, 0f)
@@ -247,18 +244,5 @@ class PetGLView(
                 .order(java.nio.ByteOrder.nativeOrder())
                 .asFloatBuffer()
                 .apply { put(arr) }
-
-        /** EGLContextFactory 兼容壳（GLSurfaceView 默认工厂即可，这里留扩展点） */
-        private class EGLContextFactoryCompat : EGLContextFactory {
-            override fun createContext(javax: javax.microedition.khronos.egl.EGL10, display: javax.microedition.khronos.egl.EGLDisplay, config: javax.microedition.khronos.egl.EGLConfig): javax.microedition.khronos.egl.EGLContext {
-                // 默认 2.0 上下文（GLSurfaceView 内部版本选择已带 GL2）
-                val attr = intArrayOf(0x3098 /*EGL_CONTEXT_CLIENT_VERSION*/, 2, 0x3038 /*EGL_NONE*/)
-                return javax.eglCreateContext(display, config, javax.microedition.khronos.egl.EGL10.EGL_NO_CONTEXT, attr)
-            }
-
-            override fun destroyContext(javax: javax.microedition.khronos.egl.EGL10, display: javax.microedition.khronos.egl.EGLDisplay, context: javax.microedition.khronos.egl.EGLContext) {
-                javax.eglDestroyContext(display, context)
-            }
-        }
     }
 }
