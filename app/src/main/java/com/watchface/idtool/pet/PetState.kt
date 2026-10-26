@@ -148,7 +148,9 @@ class PetState(
     fun startMove() {
         val (anim, params) = PetAnimations.randomMove(random)
         val scale = size / PetAnimations.PET_REF_WIDTH
-        val dist = (params.minDist + random.nextInt(params.maxDist - params.minDist)) * scale
+        // 距离在 [minDist, maxDist] 内随机（两者相等时直接取 min，避免 nextInt(0) 抛异常）
+        val span = (params.maxDist - params.minDist).coerceAtLeast(0)
+        val dist = (params.minDist + if (span > 0) random.nextInt(span) else 0) * scale
         val dir = if (random.nextBoolean()) 1f else -1f
         moveOriginX = x
         moveTargetX = (x + dir * dist).coerceIn(bounds.minX, bounds.maxX)
