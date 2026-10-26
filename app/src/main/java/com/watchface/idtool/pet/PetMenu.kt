@@ -1,4 +1,4 @@
-package com.watchface.idtool.pet
+﻿package com.watchface.idtool.pet
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -102,7 +102,8 @@ object PetMenu {
         onSaveMemory: (String, String) -> Unit,
     ) {
         var input by remember { mutableStateOf("") }
-        var messages = remember { mutableStateOf(memory.toMutableList()) }
+        // 用 StateList 保证 add 时自动触发重组（普通 mutableStateOf(List) 的 add 不会）
+        val messages = remember { androidx.compose.runtime.mutableStateListOf<PetChatApi.Message>().apply { addAll(memory) } }
         var sending by remember { mutableStateOf(false) }
         var errorText by remember { mutableStateOf<String?>(null) }
         val scope = rememberCoroutineScope()
@@ -127,7 +128,7 @@ object PetMenu {
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    messages.value.forEach { m ->
+                    messages.forEach { m ->
                         val isUser = m.role == "user"
                         Box(
                             modifier = Modifier
@@ -174,14 +175,14 @@ object PetMenu {
                                 input = ""
                                 sending = true
                                 errorText = null
-                                messages.value.add(PetChatApi.Message("user", text))
+                                messages.add(PetChatApi.Message("user", text))
                                 onSaveMemory("user", text)
                                 onSend(text) { reply ->
                                     sending = false
                                     if (reply.startsWith("错误:")) {
                                         errorText = reply.removePrefix("错误:")
                                     } else {
-                                        messages.value.add(PetChatApi.Message("assistant", reply))
+                                        messages.add(PetChatApi.Message("assistant", reply))
                                         onSaveMemory("assistant", reply)
                                     }
                                 }
