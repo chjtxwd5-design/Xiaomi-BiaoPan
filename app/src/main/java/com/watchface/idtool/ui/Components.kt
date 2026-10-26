@@ -1063,11 +1063,12 @@ private fun FlatBackground(modifier: Modifier = Modifier) {
 /**
  * DeepSeek Harness 动态壁纸背景（Tomoyo Sakagami 适配版）：
  *
- * 主层：assets/wallpaper_live.mp4 —— Harness 同款动态壁纸原画面（2560×1440 横屏），
- *       不旋转、不裁切源，播放时 TextureView 按 **Cover 自适应** 缩放：
- *       等比放大到铺满屏幕，多余部分均匀居中裁掉（与 Harness objectFit=cover、
- *       系统 wallpaper、ImageView CenterCrop 同一算法）。
+ * 主层：assets/wallpaper_live.mp4 —— Harness 同款动态壁纸原画面（1280×650 横屏），
+ *       不旋转、不裁切源，TextureView + MediaPlayer + Matrix 按 **Cover 自适应** 缩放：
+ *       等比放大到铺满屏幕，多余部分均匀居中裁掉（与 Harness objectFit=cover 同一算法）。
  *       竖屏 → 全高可见、左右居中裁；横屏 → 完整画面。任何屏幕比例全屏无黑边。
+ *       （VideoView 内部 onMeasure 会按视频比例 letterbox 且外部无法覆盖，故不用）
+ * 缓存：按 assets 视频大小校验，版本升级后旧缓存自动替换（避免一直播旧视频）。
  * 回退：视频初始化失败 / 低配机型 → 静态帧 + 取色光斑（GPU 负担极低）。
  * 前景：分层 scrim（上下渐深保证文字可读，人物区通透）+ 漂移光斑供玻璃折射取色。
  */
@@ -1099,53 +1100,91 @@ private fun HarnessWallpaperBackground(modifier: Modifier = Modifier) {
     val context = LocalContext.current
 
     Box(modifier.fillMaxSize()) {
-        // ---- 主层：动态壁纸视频（Cover 自适应铺满，循环无音轨） ----
+        // ---- 主层：动态壁纸视频（TextureView + Matrix Cover，循环无音轨） ----
         AndroidView(
             factory = { ctx ->
-                android.widget.VideoView(ctx).apply {
-                    try {
-                        val file = java.io.File(ctx.filesDir, "wallpaper_live.mp4")
-                        if (!file.exists() || file.length() == 0L) {
-                            ctx.assets.open("wallpaper_live.mp4").use { input ->
-                                file.outputStream().use { output -> input.copyTo(output) }
-                            }
+                android.view.TextureView(ctx).apply {
+                    var mediaPlayer: android.media.MediaPlayer? = null
+
+                    fun applyCoverMatrix(vw: Int, vh: Int) {
+                        post {
+                            val tw = width.toFloat()
+                            val th = height.toFloat()
+                            if (vw <= 0 || vh <= 0 || tw <= 0f || th <= 0f) return@post
+                            // Cover：等比放大到完全覆盖，居中裁掉溢出
+                            val sx = tw / vw
+                            val sy = th / vh
+                            val s = maxOf(sx, sy)
+                            val matrix = android.graphics.Matrix()
+                            matrix.setScale(s, s, tw / 2f, th / 2f)
+                            setTransform(matrix)
                         }
-                        setVideoPath(file.absolutePath)
-                        setOnPreparedListener { mp ->
-                            mp.isLooping = true
-                            mp.setVolume(0f, 0f)
-                            // Cover 自适应核心：视频尺寸就绪后按 TextureView 实际
-                            // 大小等比放大至完全覆盖，居中裁掉溢出部分
-                            mp.setOnVideoSizeChangedListener { _, vw, vh ->
-                                if (vw > 0 && vh > 0) {
-                                    val lp = layoutParams
-                                    val vwF = vw.toFloat()
-                                    val vhF = vh.toFloat()
-                                    // 先铺满容器：取 scaleX/scaleY 的较大者
-                                    if (lp != null && lp.width > 0 && lp.height > 0) {
-                                        val sx = lp.width / vwF
-                                        val sy = lp.height / vhF
-                                        val s = maxOf(sx, sy)
-                                        scaleX = s
-                                        scaleY = s
-                                        pivotX = lp.width / 2f
-                                        pivotY = lp.height / 2f
+                    }
+
+                    surfaceTextureListener = object : android.view.TextureView.SurfaceTextureListener {
+                        override fun onSurfaceTextureAvailable(st: android.graphics.SurfaceTexture, w: Int, h: Int) {
+                            try {
+                                // 缓存校验：与 assets 视频大小不一致即替换
+                                // （修复版本升级后一直播旧缓存视频的问题）
+                                val expectedSize = ctx.assets.openFd("wallpaper_live.mp4").length
+                                val file = java.io.File(ctx.filesDir, "wallpaper_live.mp4")
+                                if (!file.exists() || file.length() != expectedSize) {
+                                    ctx.assets.open("wallpaper_live.mp4").use { input ->
+                                        file.outputStream().use { output -> input.copyTo(output) }
                                     }
                                 }
+                                val mp = android.media.MediaPlayer()
+                                mediaPlayer = mp
+                                mp.setSurface(android.view.Surface(st))
+                                mp.setDataSource(file.absolutePath)
+                                mp.isLooping = true
+                                // 音频属性声明为系统提示音 + 静音：
+                                // MIUI 等 ROM 检测到"应用播视频"会暂停后台音乐，绕开该检测
+                                mp.setAudioAttributes(
+                                    android.media.AudioAttributes.Builder()
+                                        .setUsage(android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                                        .build()
+                                )
+                                mp.setVolume(0f, 0f)
+                                mp.setOnVideoSizeChangedListener { _, vw, vh ->
+                                    applyCoverMatrix(vw, vh)
+                                }
+                                mp.setOnPreparedListener {
+                                    videoReady = true
+                                    applyCoverMatrix(it.videoWidth, it.videoHeight)
+                                    it.start()
+                                }
+                                mp.setOnErrorListener { _, _, _ ->
+                                    videoReady = false
+                                    true
+                                }
+                                mp.prepareAsync()
+                            } catch (_: Exception) {
+                                videoReady = false
                             }
-                            videoReady = true
-                            start()
                         }
-                        setOnErrorListener { _, _, _ ->
-                            videoReady = false
-                            true
+
+                        override fun onSurfaceTextureSizeChanged(st: android.graphics.SurfaceTexture, w: Int, h: Int) {
+                            mediaPlayer?.let { applyCoverMatrix(it.videoWidth, it.videoHeight) }
                         }
-                    } catch (_: Exception) {
-                        videoReady = false
+
+                        override fun onSurfaceTextureDestroyed(st: android.graphics.SurfaceTexture): Boolean {
+                            mediaPlayer?.run {
+                                try {
+                                    stop()
+                                    release()
+                                } catch (_: Exception) { }
+                            }
+                            mediaPlayer = null
+                            return true
+                        }
+
+                        override fun onSurfaceTextureUpdated(st: android.graphics.SurfaceTexture) = Unit
                     }
                 }
             },
-            update = { /* 状态驱动不重建，循环由 isLooping 维持 */ },
+            update = { },
             modifier = Modifier.fillMaxSize()
         )
 
