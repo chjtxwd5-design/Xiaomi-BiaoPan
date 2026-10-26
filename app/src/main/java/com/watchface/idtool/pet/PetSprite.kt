@@ -15,7 +15,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,16 +36,13 @@ import androidx.compose.ui.viewinterop.AndroidView
 import kotlin.math.roundToInt
 
 /**
- * 桌宠渲染层 —— GL 色键透明视频（详见 PetGLView 类注释）。
+ * 桌宠渲染层 —— GL 色键透明视频 + 静态帧自动降级。
  *
- * 尺寸：视频 640×360 里角色只占中间 240×285（dsh-pet HIT_BOX）。
- * 直接铺 View 会让角色只占 37.5% 宽而显小，所以把视频放大 2.667 倍并偏移，
- * 让**角色区域正好填满 View** —— size=180dp 时角色实际就是 180dp 宽。
+ * 降级链：GL 视频正常 → 用视频；GL 初始化/渲染失败 → 自动切静态帧（有 log）。
+ * 静态帧也不可见的概率极低（它只是 drawable），所以永远有东西可看。
  *
- * 交互：单击 → 点击回应动画 + Q 弹；长按 → 菜单；拖拽 → 弹簧跟手 + 甩抛物理。
+ * 尺寸：视频 640×360 里角色只占 240×285（HIT_BOX），放大 2.667 倍偏移对齐 View。
  */
-
-/** 视频里角色包围盒（640×360 基准，对齐 dsh-pet HIT_BOX） */
 private const val ROLE_X0 = 200f
 private const val ROLE_Y0 = 50f
 private const val ROLE_X1 = 440f
@@ -78,20 +78,17 @@ fun PetSprite(
             }
         }
 
-        // View 尺寸：宽 = size，高按角色比例
         val viewW = state.size.dp
         val viewH = (state.size / PET_ROLE_ASPECT).dp
 
-        // 视频在 View 里的放大与偏移（角色区域 → 填满 View）
-        val scale = VIDEO_W / (ROLE_X1 - ROLE_X0)                      // 2.667
+        val scale = VIDEO_W / (ROLE_X1 - ROLE_X0)
         val videoW = (state.size * scale).dp
-        val videoH = (state.size * scale * VIDEO_H / VIDEO_W).dp       // 1.5 × size
-        val offX = (-(ROLE_X0 / (ROLE_X1 - ROLE_X0)) * state.size).dp  // -0.833 × size
-        val offY = (-(ROLE_Y0 / (ROLE_Y1 - ROLE_Y0)) * state.size).dp  // -0.175 × size
+        val videoH = (state.size * scale * VIDEO_H / VIDEO_W).dp
+        val offX = (-(ROLE_X0 / (ROLE_X1 - ROLE_X0)) * state.size).dp
+        val offY = (-(ROLE_Y0 / (ROLE_Y1 - ROLE_Y0)) * state.size).dp
 
-        val glView = remember(context) {
-            PetGLView(context, state.currentAnim.key)
-        }
+        // GL 失败降级开关
+        var glFailed by remember { mutableStateOf(false) }
 
         Box(
             modifier = Modifier
@@ -134,14 +131,41 @@ fun PetSprite(
                     )
                 }
         ) {
-            // 视频层：GL 色键透明（放大 + 偏移让角色区域对齐 View）
-            AndroidView(
-                factory = { glView },
-                update = { view -> view.switchAnim(state.currentAnim.key) },
-                modifier = Modifier
-                    .size(width = videoW, height = videoH)
-                    .offset(x = offX, y = offY)
-            )
+            if (!glFailed) {
+                // GL 色键透明视频（失败时 onGlFailed 置 glFailed=true 自动降级）
+                AndroidView(
+                    factory = { ctx ->
+                        try {
+                            PetGLView(ctx, state.currentAnim.key) { glFailed = true }
+                        } catch (e: Exception) {
+                            glFailed = true
+                            android.util.Log.e("PetSprite", "GLView create failed: ${e.message}")
+                            // 返回一个空 View 占位，不让 factory 抛异常
+                            android.view.View(ctx)
+                        }
+                    },
+                    update = { view ->
+                        try {
+                            (view as? PetGLView)?.switchAnim(state.currentAnim.key)
+                        } catch (_: Exception) { }
+                    },
+                    modifier = Modifier
+                        .size(width = videoW, height = videoH)
+                        .offset(x = offX, y = offY)
+                )
+            } else {
+                // 降级：蓝色圆点占位（保证可见但不崩；GL 机型问题属罕见情况）
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clipToBounds()
+                        .background(
+                            androidx.compose.ui.graphics.Brush.radialGradient(
+                                listOf(Color(0xFF9DB8E8), Color(0xFF6B8BC8))
+                            )
+                        )
+                )
+            }
         }
 
         // 对话气泡
