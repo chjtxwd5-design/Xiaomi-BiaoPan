@@ -1,10 +1,9 @@
 package com.watchface.idtool.pet
 
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+/** 角色区域宽高比（宽/高）：视频 640x360 里角色占 240x285 */
+const val PET_ROLE_ASPECT = 240f / 285f
+
+import android.view.View
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -20,12 +19,15 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -36,17 +38,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import kotlin.math.roundToInt
 
 /**
  * 桌宠渲染层 —— 双模式：
  *
  * 1. 安全模式（PetStorage.videoEnabled=false，默认）：
- *    Compose 静态形象 + 呼吸动画 + Q 弹挤压。零 GL 代码，绝对不崩。
- * 2. 视频模式（设置里开启「动态视频」）：
- *    PetGLView GL 色键透明渲染 106 个动画（实验功能）。
- *
- * 交互通用：单击 → 点击回应；长按 → 菜单；拖拽 → 弹簧跟手 + 甩抛物理。
+ *    Compose 静态形象 + 呼吸动画 + Q 弹挤压 + 拖拽物理。零 GL，绝对不崩。
+ * 2. 视频模式（设置开启「动态视频渲染」）：
+ *    PetChromaView 软件色键（TextureView getBitmap 逐帧处理），黑底真透明。
  */
 @Composable
 fun PetSprite(
@@ -76,12 +77,15 @@ fun PetSprite(
         val viewW = state.size.dp
         val viewH = (state.size / PET_ROLE_ASPECT).dp
 
-        // 呼吸动画（安全模式的"动感"来源）
-        val breath = rememberInfiniteTransition(label = "petBreath")
+        // 呼吸动画（安全模式的动感）
+        val breath = androidx.compose.animation.core.rememberInfiniteTransition(label = "petBreath")
         val breathScale by breath.animateFloat(
             initialValue = 1f,
             targetValue = 1.04f,
-            animationSpec = infiniteRepeatable(tween(1400), RepeatMode.Reverse),
+            animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                androidx.compose.animation.core.tween(1400),
+                androidx.compose.animation.core.RepeatMode.Reverse
+            ),
             label = "breathScale"
         )
 
@@ -126,21 +130,17 @@ fun PetSprite(
                 }
         ) {
             if (PetStorage.videoEnabled) {
-                // ---- 视频模式（实验功能，设置里开启）----
+                // ---- 视频模式：软件色键播放器 ----
                 AndroidView(
-                    factory = { ctx ->
+                    factory = { ctx: android.content.Context ->
                         try {
-                            PetGLView(ctx, state.currentAnim.key) { }
+                            PetChromaView(ctx)
                         } catch (e: Exception) {
-                            android.util.Log.e("PetSprite", "GLView create failed: ${e.message}")
-                            android.view.View(ctx)
+                            android.util.Log.e("PetSprite", "chroma create failed: ${e.message}")
+                            View(ctx)
                         }
                     },
-                    update = { view ->
-                        try {
-                            (view as? PetGLView)?.switchAnim(state.currentAnim.key)
-                        } catch (_: Exception) { }
-                    },
+                    update = { view: View -> },
                     modifier = Modifier.fillMaxSize()
                 )
             } else {
@@ -153,7 +153,6 @@ fun PetSprite(
                         .graphicsLayer {
                             scaleX = breathScale
                             scaleY = breathScale
-                            alpha = 0.96f
                         }
                 )
             }
