@@ -198,13 +198,15 @@ fun PetOverlay(
                 whisperOn = PetStorage.whisperEnabled,
                 balanceOn = PetStorage.balanceEnabled,
                 petSize = PetStorage.getSize(context),
+                videoOn = PetStorage.videoEnabled,
                 onDismiss = { showSettings = false },
-                onSave = { k, ps, c, w, b, sz ->
+                onSave = { k, ps, c, w, b, v, sz ->
                     PetStorage.setApiKey(context, k)
                     PetStorage.setPersona(context, ps)
                     PetStorage.setChatEnabled(context, c)
                     PetStorage.setWhisperEnabled(context, w)
                     PetStorage.setBalanceEnabled(context, b)
+                    PetStorage.setVideoEnabled(context, v)
                     PetStorage.setSize(context, sz)
                     apiKey = k
                     state.resize(sz)
