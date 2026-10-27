@@ -146,7 +146,9 @@ fun PetSprite(
             } else {
                 // ---- 安全模式：静态形象 + 呼吸 ----
                 Image(
-                    bitmap = imageResource(id = com.watchface.idtool.R.drawable.wallpaper_tomoyo),
+                    painter = androidx.compose.ui.res.painterResource(
+                        id = com.watchface.idtool.R.drawable.wallpaper_tomoyo
+                    ),
                     contentDescription = null,
                     modifier = Modifier
                         .fillMaxSize()
