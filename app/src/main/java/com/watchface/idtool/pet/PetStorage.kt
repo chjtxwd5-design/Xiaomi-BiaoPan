@@ -9,13 +9,14 @@ import org.json.JSONObject
  *
  * 存储项（SharedPreferences: "pet_settings"）：
  *   · api_key            DeepSeek API Key（闲聊与余额共用）
+ *   · video_enabled      GL 视频渲染开关（默认关：GL 在部分机型会崩溃，待修复后放开）
  *   · chat_enabled       对话功能开关
  *   · whisper_enabled    碎碎念开关
  *   · balance_enabled    余额查询开关
- *   · persona            自定义人设（留空用默认）
+ *   · persona            自定义人设
  *   · size               宠物显示宽度（dp）
  *   · pos_x / pos_y      最近位置
- *   · initial_budget     初始预算（用于算已用百分比）
+ *   · initial_budget     初始预算
  *   · memory             对话记忆（JSON 数组，最多 50 条）
  */
 object PetStorage {
@@ -23,6 +24,7 @@ object PetStorage {
     private const val PREFS = "pet_settings"
 
     private const val KEY_API = "api_key"
+    private const val KEY_VIDEO = "video_enabled"
     private const val KEY_CHAT = "chat_enabled"
     private const val KEY_WHISPER = "whisper_enabled"
     private const val KEY_BALANCE = "balance_enabled"
@@ -43,6 +45,24 @@ object PetStorage {
         prefs(context).edit().putString(KEY_API, key.trim()).apply()
     }
 
+    // ---------- GL 视频开关 ----------
+    /** 是否启用 GL 视频渲染（默认 false：安全模式，用静态形象） */
+    var videoEnabled: Boolean = false
+        private set
+
+    fun loadSwitches(context: Context) {
+        val p = prefs(context)
+        videoEnabled = p.getBoolean(KEY_VIDEO, false)
+        chatEnabled = p.getBoolean(KEY_CHAT, false)
+        whisperEnabled = p.getBoolean(KEY_WHISPER, true)
+        balanceEnabled = p.getBoolean(KEY_BALANCE, true)
+    }
+
+    fun setVideoEnabled(context: Context, enabled: Boolean) {
+        videoEnabled = enabled
+        prefs(context).edit().putBoolean(KEY_VIDEO, enabled).apply()
+    }
+
     // ---------- 功能开关 ----------
     var chatEnabled: Boolean = false
         private set
@@ -50,13 +70,6 @@ object PetStorage {
         private set
     var balanceEnabled: Boolean = true
         private set
-
-    fun loadSwitches(context: Context) {
-        val p = prefs(context)
-        chatEnabled = p.getBoolean(KEY_CHAT, false)
-        whisperEnabled = p.getBoolean(KEY_WHISPER, true)
-        balanceEnabled = p.getBoolean(KEY_BALANCE, true)
-    }
 
     fun setChatEnabled(context: Context, enabled: Boolean) {
         chatEnabled = enabled
@@ -108,7 +121,6 @@ object PetStorage {
     }
 
     // ---------- 对话记忆 ----------
-    /** 读取最近 N 轮记忆（最多 50 条） */
     fun getMemory(context: Context): List<PetChatApi.Message> {
         val json = prefs(context).getString(KEY_MEMORY, "[]") ?: "[]"
         return try {
@@ -116,12 +128,10 @@ object PetStorage {
             buildList {
                 for (i in 0 until arr.length()) {
                     val o = arr.optJSONObject(i) ?: continue
-                    add(
-                        PetChatApi.Message(
-                            role = o.optString("role", "user"),
-                            content = o.optString("content", "")
-                        )
-                    )
+                    add(PetChatApi.Message(
+                        role = o.optString("role", "user"),
+                        content = o.optString("content", "")
+                    ))
                 }
             }
         } catch (_: Exception) {
@@ -144,7 +154,7 @@ object PetStorage {
         prefs(context).edit().putString(KEY_MEMORY, arr.toString()).apply()
     }
 
-    /** 取最近 N 轮（1 轮 = 1 问 1 答 = 2 条消息） */
+    /** 取最近 N 轮 */
     fun recentMemory(context: Context, rounds: Int = 5): List<PetChatApi.Message> {
         val all = getMemory(context)
         val take = rounds * 2
@@ -160,5 +170,6 @@ object PetStorage {
         chatEnabled = false
         whisperEnabled = true
         balanceEnabled = true
+        videoEnabled = false
     }
 }
