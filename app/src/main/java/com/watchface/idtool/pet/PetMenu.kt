@@ -209,11 +209,13 @@ object PetMenu {
         chatOn: Boolean,
         whisperOn: Boolean,
         balanceOn: Boolean,
+        videoOn: Boolean,
         petSize: Float,
         onDismiss: () -> Unit,
         onSave: (
             apiKey: String, persona: String,
             chatOn: Boolean, whisperOn: Boolean, balanceOn: Boolean,
+            videoOn: Boolean,
             size: Float
         ) -> Unit,
     ) {
@@ -223,6 +225,7 @@ object PetMenu {
         var w by remember { mutableStateOf(whisperOn) }
         var b by remember { mutableStateOf(balanceOn) }
         var sz by remember { mutableStateOf(petSize) }
+        var v by remember { mutableStateOf(videoOn) }
 
         Dialog(onDismissRequest = onDismiss) {
             Column(
@@ -270,6 +273,7 @@ object PetMenu {
                 ToggleRow("AI 对话", c) { c = it }
                 ToggleRow("自动碎碎念", w) { w = it }
                 ToggleRow("余额查询", b) { b = it }
+                ToggleRow("动态视频渲染（实验，部分机型可能闪退）", v) { v = it }
 
                 Spacer(Modifier.height(12.dp))
                 FieldLabel("宠物大小：${sz.toInt()} dp")
@@ -285,7 +289,7 @@ object PetMenu {
                         modifier = Modifier
                             .clip(RoundedCornerShape(10.dp))
                             .background(ACCENT)
-                            .clickable { onSave(key, ps, c, w, b, sz) }
+                            .clickable { onSave(key, ps, c, w, b, v, sz) }
                             .padding(horizontal = 18.dp, vertical = 10.dp)
                     ) {
                         Text("保存", fontSize = 13.sp, color = Color.White)
@@ -315,3 +319,4 @@ object PetMenu {
         }
     }
 }
+
