@@ -1,9 +1,11 @@
 package com.watchface.idtool.pet
 
-/** 角色区域宽高比（宽/高）：视频 640x360 里角色占 240x285 */
-const val PET_ROLE_ASPECT = 240f / 285f
-
 import android.view.View
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -21,9 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,6 +40,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import kotlin.math.roundToInt
+
+/** 角色区域宽高比（宽/高）：视频 640x360 里角色占 240x285 */
+const val PET_ROLE_ASPECT = 240f / 285f
 
 /**
  * 桌宠渲染层 —— 双模式：
@@ -78,14 +81,11 @@ fun PetSprite(
         val viewH = (state.size / PET_ROLE_ASPECT).dp
 
         // 呼吸动画（安全模式的动感）
-        val breath = androidx.compose.animation.core.rememberInfiniteTransition(label = "petBreath")
+        val breath = rememberInfiniteTransition(label = "petBreath")
         val breathScale by breath.animateFloat(
             initialValue = 1f,
             targetValue = 1.04f,
-            animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                androidx.compose.animation.core.tween(1400),
-                androidx.compose.animation.core.RepeatMode.Reverse
-            ),
+            animationSpec = infiniteRepeatable(tween(1400), RepeatMode.Reverse),
             label = "breathScale"
         )
 
@@ -136,7 +136,7 @@ fun PetSprite(
                         try {
                             PetChromaView(ctx)
                         } catch (e: Exception) {
-                            android.util.Log.e("PetSprite", "chroma create failed: ${e.message}")
+                            android.util.Log.e("PetSprite", "chroma create failed: ${'$'}{e.message}")
                             View(ctx)
                         }
                     },
