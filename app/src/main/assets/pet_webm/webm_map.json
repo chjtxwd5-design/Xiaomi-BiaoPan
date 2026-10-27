@@ -1,0 +1,640 @@
+{
+ "animations": [
+  {
+   "key": "juggle-three-balls",
+   "webm": "juggle-three-balls.webm",
+   "name": "三球抛接",
+   "bytes": 549316
+  },
+  {
+   "key": "play-gomoku",
+   "webm": "play-gomoku.webm",
+   "name": "下五子棋",
+   "bytes": 514704
+  },
+  {
+   "key": "look-around",
+   "webm": "look-around.webm",
+   "name": "东张西望",
+   "bytes": 427005
+  },
+  {
+   "key": "midautumn-mooncake",
+   "webm": "midautumn-mooncake.webm",
+   "name": "中秋赏月吃月饼",
+   "bytes": 512341
+  },
+  {
+   "key": "elegant-maid-dance",
+   "webm": "elegant-maid-dance.webm",
+   "name": "优雅女仆舞",
+   "bytes": 578915
+  },
+  {
+   "key": "balance-broke",
+   "webm": "balance-broke.webm",
+   "name": "余额-分文不剩",
+   "bytes": 490318
+  },
+  {
+   "key": "balance-counting-frown",
+   "webm": "balance-counting-frown.webm",
+   "name": "余额-数金皱眉",
+   "bytes": 319065
+  },
+  {
+   "key": "balance-empty-purse",
+   "webm": "balance-empty-purse.webm",
+   "name": "余额-袋空如洗",
+   "bytes": 383104
+  },
+  {
+   "key": "balance-purse-jingle",
+   "webm": "balance-purse-jingle.webm",
+   "name": "余额-金袋叮当",
+   "bytes": 530955
+  },
+  {
+   "key": "balance-purse-normal",
+   "webm": "balance-purse-normal.webm",
+   "name": "余额-钱袋如常",
+   "bytes": 387407
+  },
+  {
+   "key": "balance-full-purse",
+   "webm": "balance-full-purse.webm",
+   "name": "余额-钱袋满溢",
+   "bytes": 622258
+  },
+  {
+   "key": "caught-snacking",
+   "webm": "caught-snacking.webm",
+   "name": "偷吃零食被抓住",
+   "bytes": 432201
+  },
+  {
+   "key": "coding",
+   "webm": "coding.webm",
+   "name": "写代码",
+   "bytes": 383960
+  },
+  {
+   "key": "write-fu-character",
+   "webm": "write-fu-character.webm",
+   "name": "写福字",
+   "bytes": 500314
+  },
+  {
+   "key": "conjure-flowers",
+   "webm": "conjure-flowers.webm",
+   "name": "凭空生花",
+   "bytes": 620252
+  },
+  {
+   "key": "animals-encircle",
+   "webm": "animals-encircle.webm",
+   "name": "动物环绕",
+   "bytes": 981435
+  },
+  {
+   "key": "play-rubiks-cube",
+   "webm": "play-rubiks-cube.webm",
+   "name": "原地专心玩魔方",
+   "bytes": 442948
+  },
+  {
+   "key": "nap-sleep",
+   "webm": "nap-sleep.webm",
+   "name": "原地小憩沉眠",
+   "bytes": 433769
+  },
+  {
+   "key": "turn-left-run",
+   "webm": "turn-left-run.webm",
+   "name": "原地左转奔跑",
+   "bytes": 614526
+  },
+  {
+   "key": "tap-desk-interact",
+   "webm": "tap-desk-interact.webm",
+   "name": "原地敲击桌面互动",
+   "bytes": 403033
+  },
+  {
+   "key": "float-step",
+   "webm": "float-step.webm",
+   "name": "原地漂浮踏步",
+   "bytes": 591446
+  },
+  {
+   "key": "jump-grab-overhead",
+   "webm": "jump-grab-overhead.webm",
+   "name": "原地跳跃抓碎头顶物品",
+   "bytes": 619282
+  },
+  {
+   "key": "crouch-play-toy-car",
+   "webm": "crouch-play-toy-car.webm",
+   "name": "原地蹲下玩玩具汽车",
+   "bytes": 505114
+  },
+  {
+   "key": "gravity-crouch-squash",
+   "webm": "gravity-crouch-squash.webm",
+   "name": "原地重力下蹲压缩",
+   "bytes": 215047
+  },
+  {
+   "key": "turn-into-dove",
+   "webm": "turn-into-dove.webm",
+   "name": "变鸽子",
+   "bytes": 509462
+  },
+  {
+   "key": "cute-dance",
+   "webm": "cute-dance.webm",
+   "name": "可爱宅舞",
+   "bytes": 576307
+  },
+  {
+   "key": "eat-token",
+   "webm": "eat-token.webm",
+   "name": "吃Token",
+   "bytes": 574754
+  },
+  {
+   "key": "eat-melting-icecream",
+   "webm": "eat-melting-icecream.webm",
+   "name": "吃冰淇淋融化",
+   "bytes": 509816
+  },
+  {
+   "key": "eat-lunch",
+   "webm": "eat-lunch.webm",
+   "name": "吃午餐",
+   "bytes": 495122
+  },
+  {
+   "key": "eat-crab",
+   "webm": "eat-crab.webm",
+   "name": "吃大闸蟹",
+   "bytes": 545299
+  },
+  {
+   "key": "eat-ricecake",
+   "webm": "eat-ricecake.webm",
+   "name": "吃年糕",
+   "bytes": 451257
+  },
+  {
+   "key": "eat-breakfast",
+   "webm": "eat-breakfast.webm",
+   "name": "吃早餐",
+   "bytes": 441484
+  },
+  {
+   "key": "eat-dinner",
+   "webm": "eat-dinner.webm",
+   "name": "吃晚餐",
+   "bytes": 741965
+  },
+  {
+   "key": "eat-tangyuan",
+   "webm": "eat-tangyuan.webm",
+   "name": "吃汤圆",
+   "bytes": 437152
+  },
+  {
+   "key": "eat-plain-rice",
+   "webm": "eat-plain-rice.webm",
+   "name": "吃白饭",
+   "bytes": 459590
+  },
+  {
+   "key": "eat-zongzi",
+   "webm": "eat-zongzi.webm",
+   "name": "吃粽子",
+   "bytes": 446268
+  },
+  {
+   "key": "eat-candied-hawthorn",
+   "webm": "eat-candied-hawthorn.webm",
+   "name": "吃糖葫芦",
+   "bytes": 469809
+  },
+  {
+   "key": "eat-labaporridge",
+   "webm": "eat-labaporridge.webm",
+   "name": "吃腊八粥",
+   "bytes": 460665
+  },
+  {
+   "key": "eat-watermelon",
+   "webm": "eat-watermelon.webm",
+   "name": "吃西瓜",
+   "bytes": 482918
+  },
+  {
+   "key": "eat-chongyang-cake",
+   "webm": "eat-chongyang-cake.webm",
+   "name": "吃重阳糕",
+   "bytes": 468951
+  },
+  {
+   "key": "eat-longevity-noodles",
+   "webm": "eat-longevity-noodles.webm",
+   "name": "吃长寿面",
+   "bytes": 489038
+  },
+  {
+   "key": "eat-qingtuan",
+   "webm": "eat-qingtuan.webm",
+   "name": "吃青团",
+   "bytes": 377524
+  },
+  {
+   "key": "eat-dumplings",
+   "webm": "eat-dumplings.webm",
+   "name": "吃饺子",
+   "bytes": 554828
+  },
+  {
+   "key": "blow-balloon",
+   "webm": "blow-balloon.webm",
+   "name": "吹气球",
+   "bytes": 751040
+  },
+  {
+   "key": "play-flute",
+   "webm": "play-flute.webm",
+   "name": "吹笛子",
+   "bytes": 768350
+  },
+  {
+   "key": "yawn",
+   "webm": "yawn.webm",
+   "name": "哈欠连天",
+   "bytes": 424352
+  },
+  {
+   "key": "build-snowman",
+   "webm": "build-snowman.webm",
+   "name": "堆雪人",
+   "bytes": 519196
+  },
+  {
+   "key": "gobble-snacks",
+   "webm": "gobble-snacks.webm",
+   "name": "大口吃零食",
+   "bytes": 806998
+  },
+  {
+   "key": "maid-curtsy",
+   "webm": "maid-curtsy.webm",
+   "name": "女仆屈膝礼仪",
+   "bytes": 365712
+  },
+  {
+   "key": "spin-360-showcase",
+   "webm": "spin-360-showcase.webm",
+   "name": "小幅度原地360度旋转展示",
+   "bytes": 585715
+  },
+  {
+   "key": "play-violin",
+   "webm": "play-violin.webm",
+   "name": "小提琴演奏",
+   "bytes": 605350
+  },
+  {
+   "key": "work-pace-look",
+   "webm": "work-pace-look.webm",
+   "name": "工作状态-原地踱步张望",
+   "bytes": 471725
+  },
+  {
+   "key": "work-sigh-sweat",
+   "webm": "work-sigh-sweat.webm",
+   "name": "工作状态-垂头叹气冒汗",
+   "bytes": 198937
+  },
+  {
+   "key": "work-busy-tap",
+   "webm": "work-busy-tap.webm",
+   "name": "工作状态-忙碌点按",
+   "bytes": 475613
+  },
+  {
+   "key": "work-think-bubble",
+   "webm": "work-think-bubble.webm",
+   "name": "工作状态-思考冒泡",
+   "bytes": 408849
+  },
+  {
+   "key": "work-archive",
+   "webm": "work-archive.webm",
+   "name": "工作状态-清点归档",
+   "bytes": 362510
+  },
+  {
+   "key": "work-celebrate",
+   "webm": "work-celebrate.webm",
+   "name": "工作状态-雀跃庆祝",
+   "bytes": 488024
+  },
+  {
+   "key": "idle-breathe",
+   "webm": "idle-breathe.webm",
+   "name": "待机呼吸休闲",
+   "bytes": 441437
+  },
+  {
+   "key": "hum-song",
+   "webm": "hum-song.webm",
+   "name": "悠闲哼歌",
+   "bytes": 584008
+  },
+  {
+   "key": "card-magic",
+   "webm": "card-magic.webm",
+   "name": "扑克魔术",
+   "bytes": 461997
+  },
+  {
+   "key": "doze-startle",
+   "webm": "doze-startle.webm",
+   "name": "打瞌睡被惊醒",
+   "bytes": 454028
+  },
+  {
+   "key": "spin-top",
+   "webm": "spin-top.webm",
+   "name": "抽陀螺",
+   "bytes": 521068
+  },
+  {
+   "key": "open-gift",
+   "webm": "open-gift.webm",
+   "name": "拆礼物",
+   "bytes": 517803
+  },
+  {
+   "key": "chrysanthemum-viewing",
+   "webm": "chrysanthemum-viewing.webm",
+   "name": "插茱萸赏菊",
+   "bytes": 486358
+  },
+  {
+   "key": "fan-cooling",
+   "webm": "fan-cooling.webm",
+   "name": "摇扇纳凉",
+   "bytes": 510022
+  },
+  {
+   "key": "pet-cat",
+   "webm": "pet-cat.webm",
+   "name": "撸猫",
+   "bytes": 348432
+  },
+  {
+   "key": "receive-red-envelope",
+   "webm": "receive-red-envelope.webm",
+   "name": "收红包",
+   "bytes": 472277
+  },
+  {
+   "key": "release-sky-lantern",
+   "webm": "release-sky-lantern.webm",
+   "name": "放孔明灯",
+   "bytes": 594144
+  },
+  {
+   "key": "release-river-lantern",
+   "webm": "release-river-lantern.webm",
+   "name": "放河灯",
+   "bytes": 379124
+  },
+  {
+   "key": "set-fireworks",
+   "webm": "set-fireworks.webm",
+   "name": "放烟花",
+   "bytes": 1330462
+  },
+  {
+   "key": "fly-kite",
+   "webm": "fly-kite.webm",
+   "name": "放风筝",
+   "bytes": 770134
+  },
+  {
+   "key": "outfit-color-try",
+   "webm": "outfit-color-try.webm",
+   "name": "整体换装试色",
+   "bytes": 524724
+  },
+  {
+   "key": "what-to-eat",
+   "webm": "what-to-eat.webm",
+   "name": "是啊，吃什么",
+   "bytes": 588163
+  },
+  {
+   "key": "morning-brush-teeth",
+   "webm": "morning-brush-teeth.webm",
+   "name": "晨间刷牙",
+   "bytes": 425460
+  },
+  {
+   "key": "hotpot",
+   "webm": "hotpot.webm",
+   "name": "涮火锅",
+   "bytes": 466547
+  },
+  {
+   "key": "deep-think-mutter",
+   "webm": "deep-think-mutter.webm",
+   "name": "深度思考碎碎念",
+   "bytes": 433031
+  },
+  {
+   "key": "click-tsundere-angry",
+   "webm": "click-tsundere-angry.webm",
+   "name": "点击回应-傲娇生气",
+   "bytes": 392336
+  },
+  {
+   "key": "click-energetic-wave",
+   "webm": "click-energetic-wave.webm",
+   "name": "点击回应-元气挥手",
+   "bytes": 421669
+  },
+  {
+   "key": "click-shy-surprise",
+   "webm": "click-shy-surprise.webm",
+   "name": "点击回应-害羞惊讶",
+   "bytes": 538281
+  },
+  {
+   "key": "click-happy-jump",
+   "webm": "click-happy-jump.webm",
+   "name": "点击回应-开心跃动",
+   "bytes": 538110
+  },
+  {
+   "key": "click-tickle-giggle",
+   "webm": "click-tickle-giggle.webm",
+   "name": "点击回应-挠痒咯咯笑",
+   "bytes": 425393
+  },
+  {
+   "key": "look-mirror",
+   "webm": "look-mirror.webm",
+   "name": "照镜子",
+   "bytes": 504127
+  },
+  {
+   "key": "water-gun",
+   "webm": "water-gun.webm",
+   "name": "玩水枪",
+   "bytes": 523346
+  },
+  {
+   "key": "game-frustrated",
+   "webm": "game-frustrated.webm",
+   "name": "玩游戏气急败坏",
+   "bytes": 525022
+  },
+  {
+   "key": "whale-tail-slam",
+   "webm": "whale-tail-slam.webm",
+   "name": "用鲸鱼尾巴拍打地面",
+   "bytes": 352213
+  },
+  {
+   "key": "whisper-daze",
+   "webm": "whisper-daze.webm",
+   "name": "碎碎念-发呆碎碎念",
+   "bytes": 326752
+  },
+  {
+   "key": "whisper-stare-screen",
+   "webm": "whisper-stare-screen.webm",
+   "name": "碎碎念-对屏碎碎念",
+   "bytes": 364946
+  },
+  {
+   "key": "whisper-wipe-desk",
+   "webm": "whisper-wipe-desk.webm",
+   "name": "碎碎念-擦桌碎碎念",
+   "bytes": 350436
+  },
+  {
+   "key": "needle-threading",
+   "webm": "needle-threading.webm",
+   "name": "穿针乞巧",
+   "bytes": 480887
+  },
+  {
+   "key": "lion-dance",
+   "webm": "lion-dance.webm",
+   "name": "舞狮头",
+   "bytes": 632110
+  },
+  {
+   "key": "swing",
+   "webm": "swing.webm",
+   "name": "荡秋千",
+   "bytes": 644126
+  },
+  {
+   "key": "cute-ghost",
+   "webm": "cute-ghost.webm",
+   "name": "萌化小幽灵",
+   "bytes": 421990
+  },
+  {
+   "key": "blue-whale-appear",
+   "webm": "blue-whale-appear.webm",
+   "name": "蓝鲸现世",
+   "bytes": 482896
+  },
+  {
+   "key": "butterflies-bloom",
+   "webm": "butterflies-bloom.webm",
+   "name": "蝴蝶蜜蜂环绕头顶开花",
+   "bytes": 852828
+  },
+  {
+   "key": "crab-walk",
+   "webm": "crab-walk.webm",
+   "name": "螃蟹走路",
+   "bytes": 596902
+  },
+  {
+   "key": "startled",
+   "webm": "startled.webm",
+   "name": "被吓一跳",
+   "bytes": 282771
+  },
+  {
+   "key": "buried-leaves",
+   "webm": "buried-leaves.webm",
+   "name": "被落叶淹没",
+   "bytes": 766832
+  },
+  {
+   "key": "mouse-drag-floating",
+   "webm": "mouse-drag-floating.webm",
+   "name": "被鼠标拖拽悬空反馈",
+   "bytes": 464764
+  },
+  {
+   "key": "decorate-christmas-tree",
+   "webm": "decorate-christmas-tree.webm",
+   "name": "装点圣诞树",
+   "bytes": 818456
+  },
+  {
+   "key": "trick-or-treat-pumpkin",
+   "webm": "trick-or-treat-pumpkin.webm",
+   "name": "讨糖南瓜灯",
+   "bytes": 483293
+  },
+  {
+   "key": "big-stretch",
+   "webm": "big-stretch.webm",
+   "name": "超大伸懒腰",
+   "bytes": 396987
+  },
+  {
+   "key": "kick-shuttlecock",
+   "webm": "kick-shuttlecock.webm",
+   "name": "踢毽子",
+   "bytes": 531015
+  },
+  {
+   "key": "light-sway-dance",
+   "webm": "light-sway-dance.webm",
+   "name": "轻快摇摆舞",
+   "bytes": 542928
+  },
+  {
+   "key": "light-note-taking",
+   "webm": "light-note-taking.webm",
+   "name": "轻快记录",
+   "bytes": 447726
+  },
+  {
+   "key": "ride-hobby-horse",
+   "webm": "ride-hobby-horse.webm",
+   "name": "骑木马",
+   "bytes": 697580
+  },
+  {
+   "key": "whale-bubbles",
+   "webm": "whale-bubbles.webm",
+   "name": "鲸鱼吐泡泡特效",
+   "bytes": 452096
+  }
+ ]
+}
